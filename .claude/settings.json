@@ -1,0 +1,18 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": "",
+        "command": "bash -c '\nDIR=\"myinsights\"\nINDEX=\"myinsights/1nsights.md\"\nCLAUDE=\"CLAUDE.md\"\n\n# Check if myinsights/ has any uncommitted changes\nif [ -d \"$DIR\" ] && (git diff --name-only -- \"$DIR\" 2>/dev/null | grep -q . || git diff --name-only --cached -- \"$DIR\" 2>/dev/null | grep -q . || git ls-files --others --exclude-standard -- \"$DIR\" 2>/dev/null | grep -q .); then\n  \n  # Auto-add insights reference to CLAUDE.md on first time\n  if ! grep -q \"myinsights\" \"$CLAUDE\" 2>/dev/null; then\n    printf \"\\n## Development Insights\\nIndex: myinsights/1nsights.md — check here FIRST before debugging.\\n\" >> \"$CLAUDE\"\n    git add \"$CLAUDE\"\n    echo \"Added myinsights reference to CLAUDE.md\"\n  fi\n  \n  # Auto-commit all changes in myinsights/\n  git add \"$DIR\"\n  git commit -m \"docs(insights): update knowledge base\"\n  echo \"myinsights/ auto-committed\"\nfi\n'"
+      },
+      {
+        "matcher": "",
+        "command": "bash -c '\nROADMAP=\".claude/feature-roadmap.json\"\nif [ -f \"$ROADMAP\" ] && (git diff --name-only -- \"$ROADMAP\" 2>/dev/null | grep -q . || git diff --name-only --cached -- \"$ROADMAP\" 2>/dev/null | grep -q . || git ls-files --others --exclude-standard -- \"$ROADMAP\" 2>/dev/null | grep -q .); then\n  git add \"$ROADMAP\"\n  git commit -m \"docs(roadmap): update feature status\"\n  echo \"feature-roadmap.json auto-committed\"\nfi\n'"
+      },
+      {
+        "matcher": "",
+        "command": "bash -c '\nPLANS=\"docs/plans\"\nif [ -d \"$PLANS\" ] && (git diff --name-only -- \"$PLANS\" 2>/dev/null | grep -q . || git ls-files --others --exclude-standard -- \"$PLANS\" 2>/dev/null | grep -q .); then\n  git add \"$PLANS\"\n  git commit -m \"docs(plans): update implementation plans\"\n  echo \"docs/plans/ auto-committed\"\nfi\n'"
+      }
+    ]
+  }
+}
