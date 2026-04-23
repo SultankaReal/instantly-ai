@@ -444,3 +444,323 @@ ERROR CATEGORIES:
 GLOBAL RULE: Never expose stack traces or DB errors to clients.
 All errors include requestId for log correlation.
 ```
+
+---
+
+## 5. Additional Algorithms (US-03, US-04, US-07, US-08)
+
+### Algorithm: Autosave Draft (US-03)
+
+```
+// Client-side: fires every 30 seconds while editor is open
+FUNCTION autosaveClient(postId, content):
+  IF content == lastSavedContent: RETURN  // No change, skip
+  IF isSaving: RETURN                      // Debounce in-flight requests
+
+  isSaving = true
+  showIndicator('Saving...')
+
+  TRY:
+    await PATCH /api/posts/{postId} { content_html: content }
+    lastSavedContent = content
+    lastSavedAt = NOW()
+    showIndicator(`Saved ${formatTimeAgo(lastSavedAt)}`)
+  CATCH error:
+    showIndicator('Save failed — retrying...')
+  FINALLY:
+    isSaving = false
+
+  // Update indicator every second
+  setInterval(() => showIndicator(`Saved ${formatTimeAgo(lastSavedAt)}`), 1000)
+
+
+// Server-side: PATCH /api/posts/:id handler
+FUNCTION updatePost(postId, authorId, data):
+  INPUT: postId: UUID, authorId: UUID, data: { content_html?, title?, excerpt? }
+  OUTPUT: Post | Error
+
+  post = DB.findPost(postId, authorId)
+  IF post IS NULL: THROW NotFoundError
+  IF post.status == 'sent': THROW ConflictError("Cannot edit a sent post")
+
+  updated = DB.updatePost(postId, {
+    ...data,
+    updated_at: NOW()
+  })
+
+  RETURN updated
+
+  COMPLEXITY: O(1)
+```
+
+---
+
+### Algorithm: Subscribe / Confirm / Unsubscribe (US-04)
+
+```
+FUNCTION subscribe(email, publicationId):
+  INPUT: email: string, publicationId: UUID
+  OUTPUT: { message: string } | Error
+
+  email = email.trim().toLowerCase()
+  IF NOT isValidEmail(email): THROW ValidationError("Invalid email")
+
+  publication = DB.findPublication(publicationId)
+  IF publication IS NULL: THROW NotFoundError
+
+  // Idempotent: check existing
+  existing = DB.findSubscriber(publicationId, email)
+  IF existing AND existing.status == 'active':
+    RETURN { message: "You're already subscribed!" }
+  IF existing AND existing.status == 'pending_confirmation':
+    // Resend confirmation email (idempotent)
+    EmailService.sendConfirmationEmail(existing)
+    RETURN { message: "Confirmation email resent" }
+
+  // Create or re-activate
+  token = generateSecureToken()  // crypto.randomBytes(32).toString('hex')
+  subscriber = DB.upsertSubscriber({
+    publication_id: publicationId,
+    email: email,
+    status: 'pending_confirmation',
+    confirmation_token: token,
+    confirmation_token_expires_at: NOW() + 48h,
+    subscribed_at: NOW()
+  }, { conflictTarget: ['publication_id', 'email'] })
+
+  EmailService.sendConfirmationEmail({
+    to: email,
+    publicationName: publication.name,
+    confirmUrl: `https://inkflow.io/confirm?token=${token}`
+  })
+
+  RETURN { message: "Check your email to confirm subscription" }
+
+
+FUNCTION confirmSubscription(token):
+  INPUT: token: string
+  OUTPUT: { publication: Publication } | Error
+
+  subscriber = DB.findSubscriberByToken(token)
+  IF subscriber IS NULL: THROW NotFoundError("Invalid confirmation link")
+  IF subscriber.confirmation_token_expires_at < NOW():
+    THROW GoneError("Confirmation link expired")
+  IF subscriber.status == 'active':
+    RETURN { publication: DB.findPublication(subscriber.publication_id) }  // Already confirmed, idempotent
+
+  DB.updateSubscriber(subscriber.id, {
+    status: 'active',
+    confirmation_token: NULL,
+    confirmation_token_expires_at: NULL
+  })
+
+  RETURN { publication: DB.findPublication(subscriber.publication_id) }
+
+  // Cleanup job: purge pending_confirmation older than 48h
+  // Runs via BullMQ cron: '0 * * * *' (hourly)
+  CRON cleanExpiredPendingSubscribers():
+    DB.deleteSubscribers({
+      status: 'pending_confirmation',
+      confirmation_token_expires_at: { lt: NOW() }
+    })
+
+
+FUNCTION unsubscribe(token):
+  INPUT: token: string (opaque, derived from sendId)
+  OUTPUT: { message: string } | Error
+
+  sendId = verifyUnsubscribeToken(token)  // HMAC-verify, extract sendId
+  IF sendId IS NULL: THROW ValidationError("Invalid unsubscribe link")
+
+  send = DB.findEmailSend(sendId)
+  IF send IS NULL: THROW NotFoundError
+
+  DB.updateSubscriber(send.subscriber_id, {
+    status: 'unsubscribed'
+  })
+
+  // Immediate effect: < 60 seconds guaranteed by synchronous DB update
+  EmailService.sendUnsubscribeConfirmation(send.subscriber_id)
+
+  RETURN { message: "You've been unsubscribed" }
+
+  COMPLEXITY: O(1) for each operation
+```
+
+---
+
+### Algorithm: Postmark Webhook Handler (US-08)
+
+```
+FUNCTION handlePostmarkWebhook(payload, signatureHeader):
+  INPUT: payload: PostmarkWebhookPayload, signatureHeader: string
+  OUTPUT: void | Error
+
+  // Verify signature (Postmark uses shared secret in header)
+  IF signatureHeader != POSTMARK_WEBHOOK_TOKEN:
+    THROW 401 "Invalid webhook signature"
+
+  SWITCH payload.RecordType:
+
+    CASE 'Open':
+      send = DB.findEmailSendByMessageId(payload.MessageID)
+      IF send IS NULL: LOG.warn('Unknown MessageID'); RETURN
+
+      DB.createEmailEvent({
+        email_send_id: send.id,
+        event_type: 'open',
+        occurred_at: parseDate(payload.ReceivedAt),
+        metadata: {
+          userAgent: payload.UserAgent,
+          client: payload.Client?.Name,
+          os: payload.OS?.Name
+        }
+      })
+      DB.updateEmailSend(send.id, { status: 'delivered' })
+
+    CASE 'Click':
+      send = DB.findEmailSendByMessageId(payload.MessageID)
+      IF send IS NULL: LOG.warn('Unknown MessageID'); RETURN
+
+      DB.createEmailEvent({
+        email_send_id: send.id,
+        event_type: 'click',
+        occurred_at: parseDate(payload.ReceivedAt),
+        metadata: { url: payload.OriginalLink }
+      })
+
+    CASE 'Bounce':
+      send = DB.findEmailSendByMessageId(payload.MessageID)
+      IF send IS NULL: LOG.warn('Unknown MessageID'); RETURN
+
+      DB.updateEmailSend(send.id, { status: 'bounced' })
+      DB.createEmailEvent({
+        email_send_id: send.id,
+        event_type: 'bounce',
+        occurred_at: parseDate(payload.BouncedAt),
+        metadata: { type: payload.Type, description: payload.Description }
+      })
+
+      // Hard bounce → mark subscriber bounced
+      IF payload.Type IN ['HardBounce', 'SpamComplaint']:
+        DB.updateSubscriber(send.subscriber_id, { status: 'bounced' })
+
+    CASE 'Delivery':
+      send = DB.findEmailSendByMessageId(payload.MessageID)
+      IF send: DB.updateEmailSend(send.id, { status: 'delivered' })
+
+    DEFAULT:
+      LOG.info({ type: payload.RecordType, msg: "Unhandled Postmark event" })
+
+  RETURN { received: true }
+
+
+FUNCTION aggregatePostAnalytics(postId, authorId):
+  INPUT: postId: UUID, authorId: UUID
+  OUTPUT: PostAnalytics | Error
+
+  post = DB.findPost(postId, authorId)
+  IF post IS NULL: THROW NotFoundError
+
+  // Aggregate from EmailSend + EmailEvent tables
+  stats = DB.query(`
+    SELECT
+      COUNT(DISTINCT es.id) AS total_sent,
+      COUNT(DISTINCT es.id) FILTER (WHERE es.status = 'delivered') AS delivered,
+      COUNT(DISTINCT ee_open.email_send_id) AS unique_opens,
+      COUNT(ee_open.id) AS total_opens,
+      COUNT(DISTINCT ee_click.email_send_id) AS unique_clicks,
+      COUNT(DISTINCT es.id) FILTER (WHERE es.status = 'bounced') AS bounced
+    FROM email_sends es
+    LEFT JOIN email_events ee_open
+      ON ee_open.email_send_id = es.id AND ee_open.event_type = 'open'
+    LEFT JOIN email_events ee_click
+      ON ee_click.email_send_id = es.id AND ee_click.event_type = 'click'
+    WHERE es.post_id = $postId
+  `)
+
+  // Time-series: opens per hour over 24h
+  timeSeries = DB.query(`
+    SELECT
+      date_trunc('hour', occurred_at) AS hour,
+      COUNT(*) AS opens
+    FROM email_events ee
+    JOIN email_sends es ON es.id = ee.email_send_id
+    WHERE es.post_id = $postId
+      AND ee.event_type = 'open'
+      AND ee.occurred_at > NOW() - INTERVAL '24 hours'
+    GROUP BY 1
+    ORDER BY 1
+  `)
+
+  RETURN {
+    totalSent: stats.total_sent,
+    delivered: stats.delivered,
+    openRate: stats.unique_opens / stats.total_sent,
+    uniqueOpens: stats.unique_opens,
+    totalOpens: stats.total_opens,
+    clickRate: stats.unique_clicks / stats.total_sent,
+    uniqueClicks: stats.unique_clicks,
+    bounced: stats.bounced,
+    openTimeSeries: timeSeries
+  }
+
+  COMPLEXITY: O(n) where n = email_sends for this post; cached for 5 minutes in Redis
+```
+
+---
+
+### Algorithm: Paywall Access Control (US-07)
+
+```
+FUNCTION checkPostAccess(postId, requestContext):
+  INPUT: postId: UUID, requestContext: { userId?: UUID, sessionToken?: string }
+  OUTPUT: { allowed: boolean, truncatedAt?: number }
+
+  post = DB.findPostPublic(postId)  // Does not require auth
+  IF post IS NULL: THROW NotFoundError
+  IF post.access == 'free': RETURN { allowed: true }
+
+  // Paid post: check authentication
+  IF NOT requestContext.sessionToken:
+    RETURN { allowed: false, truncatedAt: calculateTruncationPoint(post.content_html, 0.20) }
+
+  userId = verifyJWT(requestContext.sessionToken)
+  IF NOT userId:
+    RETURN { allowed: false, truncatedAt: calculateTruncationPoint(post.content_html, 0.20) }
+
+  // Check subscriber tier for this publication
+  subscriber = DB.findSubscriber(post.publication_id, userId)  // by user's email
+  IF subscriber AND subscriber.tier == 'paid' AND subscriber.status == 'active':
+    RETURN { allowed: true }
+
+  // Free or past_due subscriber
+  RETURN { allowed: false, truncatedAt: calculateTruncationPoint(post.content_html, 0.20) }
+
+
+FUNCTION calculateTruncationPoint(htmlContent, fraction):
+  INPUT: htmlContent: string, fraction: float (0.20 = 20%)
+  OUTPUT: characterOffset: number
+
+  plainText = stripHTML(htmlContent)
+  truncateAt = Math.floor(plainText.length * fraction)
+
+  // Find the nearest paragraph boundary to avoid cutting mid-sentence
+  nearestParagraph = htmlContent.lastIndexOf('</p>', truncateAt * 1.5)
+  RETURN nearestParagraph > 0 ? nearestParagraph + 4 : truncateAt
+
+
+// API layer enforces this — content is truncated SERVER-SIDE before sending to client
+// Frontend paywall overlay is supplementary, not the security boundary
+FUNCTION getPostContent(postId, requestContext):
+  access = checkPostAccess(postId, requestContext)
+  post = DB.findPostPublic(postId)
+
+  IF access.allowed:
+    RETURN { post, truncated: false }
+  ELSE:
+    truncatedHtml = post.content_html.substring(0, access.truncatedAt)
+    RETURN { post: { ...post, content_html: truncatedHtml }, truncated: true }
+
+  COMPLEXITY: O(1) DB lookups; O(n) string truncation where n = content length
+```

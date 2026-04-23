@@ -343,8 +343,8 @@ Subscriber {
   id: UUID (PK)
   publication_id: UUID FK → Publication
   email: VARCHAR(255) NOT NULL
-  status: ENUM('active', 'unsubscribed', 'bounced', 'spam')
-  tier: ENUM('free', 'paid', 'trial')
+  status: ENUM('pending_confirmation', 'active', 'unsubscribed', 'bounced', 'spam')
+  tier: ENUM('free', 'paid', 'trial', 'past_due')
   stripe_subscription_id: VARCHAR(255)
   subscribed_at: TIMESTAMPTZ
   UNIQUE(publication_id, email)
@@ -387,7 +387,10 @@ EmailEvent {
 | POST | /api/publications/:id/subscribers | None | Subscribe (email) |
 | DELETE | /api/subscribers/:token | None | Unsubscribe (tokenized) |
 | POST | /api/publications/:id/import | Author | Substack CSV import |
+| POST | /api/publications/:id/checkout | Reader | Initiate Stripe Checkout session |
 | POST | /api/stripe/webhook | Stripe sig | Payment events |
+| POST | /api/webhooks/postmark | Postmark sig | Email open/click/bounce events |
+| POST | /api/ai/generate-draft | Author | AI draft generation (v1.0) |
 | GET | /api/health | None | Health check |
 
 ---

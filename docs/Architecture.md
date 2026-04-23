@@ -297,7 +297,7 @@ services:
     restart: unless-stopped
     environment:
       - DATABASE_URL=postgresql://inkflow:${PG_PASSWORD}@postgres:5432/inkflow
-      - REDIS_URL=redis://redis:6379
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
       - JWT_SECRET=${JWT_SECRET}
       - POSTMARK_API_KEY=${POSTMARK_API_KEY}
       - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
@@ -322,13 +322,11 @@ services:
     restart: unless-stopped
     environment:
       - DATABASE_URL=postgresql://inkflow:${PG_PASSWORD}@postgres:5432/inkflow
-      - REDIS_URL=redis://redis:6379
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
       - POSTMARK_API_KEY=${POSTMARK_API_KEY}
       - RESEND_API_KEY=${RESEND_API_KEY}
     depends_on: [postgres, redis]
     networks: [inkflow]
-    deploy:
-      replicas: 2        # Horizontal scale for email throughput
 
   postgres:
     image: postgres:16-alpine
