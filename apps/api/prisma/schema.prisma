@@ -1,0 +1,256 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                     String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email                  String    @unique
+  passwordHash           String    @map("password_hash")
+  fullName               String?   @map("full_name")
+  plan                   String    @default("trial")
+  trialEndsAt            DateTime? @map("trial_ends_at") @db.Timestamptz
+  aiReplyEnabled         Boolean   @default(false) @map("ai_reply_enabled")
+  aiReplyMode            String    @default("draft") @map("ai_reply_mode")
+  aiConfidenceThreshold  Int       @default(85) @map("ai_confidence_threshold")
+  lastScannedAt          DateTime? @map("last_scanned_at") @db.Timestamptz
+  createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt              DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  emailAccounts EmailAccount[]
+  campaigns     Campaign[]
+  contacts      Contact[]
+  inboxMessages InboxMessage[]
+  subscription  Subscription?
+  paymentEvents PaymentEvent[]
+
+  @@map("users")
+}
+
+model EmailAccount {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId           String    @map("user_id") @db.Uuid
+  email            String
+  displayName      String?   @map("display_name")
+  smtpHost         String    @map("smtp_host")
+  smtpPort         Int       @default(465) @map("smtp_port")
+  imapHost         String    @map("imap_host")
+  imapPort         Int       @default(993) @map("imap_port")
+  credentialsEnc   Bytes     @map("credentials_enc")
+  status           String    @default("connected")
+  inboxScore       Int       @default(0) @map("inbox_score")
+  dailyLimit       Int       @default(50) @map("daily_limit")
+  inWarmupPool     Boolean   @default(false) @map("in_warmup_pool")
+  warmupStartedAt  DateTime? @map("warmup_started_at") @db.Timestamptz
+  lastScannedAt    DateTime? @map("last_scanned_at") @db.Timestamptz
+  dnsSpf           Boolean?  @map("dns_spf")
+  dnsDkim          Boolean?  @map("dns_dkim")
+  dnsDmarc         Boolean?  @map("dns_dmarc")
+  dnsCheckedAt     DateTime? @map("dns_checked_at") @db.Timestamptz
+  renewalAttempts  Int       @default(0) @map("renewal_attempts")
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  user               User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  warmupEvents       WarmupEvent[]
+  inboxScoreSnapshots InboxScoreSnapshot[]
+  campaigns          Campaign[]
+  emailSends         EmailSend[]
+  inboxMessages      InboxMessage[]
+  inboxAlerts        InboxAlert[]
+
+  @@unique([userId, email])
+  @@map("email_accounts")
+}
+
+model WarmupEvent {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  accountId      String   @map("account_id") @db.Uuid
+  eventType      String   @map("event_type")
+  partnerAccount String?  @map("partner_account")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  account EmailAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@map("warmup_events")
+}
+
+model InboxScoreSnapshot {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  accountId     String   @map("account_id") @db.Uuid
+  score         Int
+  provider      String   @default("combined")
+  snapshottedAt DateTime @default(now()) @map("snapshotted_at") @db.Timestamptz
+
+  account EmailAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@map("inbox_score_snapshots")
+}
+
+model Campaign {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId          String   @map("user_id") @db.Uuid
+  name            String
+  status          String   @default("draft")
+  fromAccountId   String?  @map("from_account_id") @db.Uuid
+  scheduleDays    String[] @default(["mon", "tue", "wed", "thu", "fri"]) @map("schedule_days")
+  scheduleStart   String   @default("09:00") @map("schedule_start")
+  scheduleEnd     String   @default("18:00") @map("schedule_end")
+  timezone        String   @default("Europe/Moscow")
+  dailyLimit      Int      @default(50) @map("daily_limit")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fromAccount EmailAccount? @relation(fields: [fromAccountId], references: [id], onDelete: SetNull)
+  steps       CampaignStep[]
+  emailSends  EmailSend[]
+
+  @@map("campaigns")
+}
+
+model CampaignStep {
+  id           String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  campaignId   String @map("campaign_id") @db.Uuid
+  stepNumber   Int    @map("step_number")
+  subject      String
+  bodyHtml     String @map("body_html")
+  delayDays    Int    @default(0) @map("delay_days")
+
+  campaign   Campaign    @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  emailSends EmailSend[]
+
+  @@unique([campaignId, stepNumber])
+  @@map("campaign_steps")
+}
+
+model Contact {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  email      String
+  firstName  String?  @map("first_name")
+  lastName   String?  @map("last_name")
+  company    String?
+  position   String?
+  customVars Json     @default("{}") @map("custom_vars")
+  status     String   @default("active")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  emailSends EmailSend[]
+
+  @@unique([userId, email])
+  @@map("contacts")
+}
+
+model Unsubscribe {
+  email          String   @id
+  reason         String?
+  unsubscribedAt DateTime @default(now()) @map("unsubscribed_at") @db.Timestamptz
+
+  @@map("unsubscribes")
+}
+
+model EmailSend {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  campaignId  String    @map("campaign_id") @db.Uuid
+  stepId      String    @map("step_id") @db.Uuid
+  contactId   String    @map("contact_id") @db.Uuid
+  accountId   String    @map("account_id") @db.Uuid
+  status      String    @default("queued")
+  messageId   String?   @map("message_id")
+  openedAt    DateTime? @map("opened_at") @db.Timestamptz
+  repliedAt   DateTime? @map("replied_at") @db.Timestamptz
+  bouncedAt   DateTime? @map("bounced_at") @db.Timestamptz
+  sentAt      DateTime? @map("sent_at") @db.Timestamptz
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  campaign      Campaign     @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  step          CampaignStep @relation(fields: [stepId], references: [id])
+  contact       Contact      @relation(fields: [contactId], references: [id])
+  account       EmailAccount @relation(fields: [accountId], references: [id])
+  inboxMessages InboxMessage[]
+
+  @@unique([campaignId, stepId, contactId])
+  @@map("email_sends")
+}
+
+model InboxMessage {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String    @map("user_id") @db.Uuid
+  accountId    String    @map("account_id") @db.Uuid
+  sendId       String?   @map("send_id") @db.Uuid
+  fromEmail    String    @map("from_email")
+  fromName     String?   @map("from_name")
+  subject      String?
+  bodyText     String?   @map("body_text")
+  bodyHtml     String?   @map("body_html")
+  isRead       Boolean   @default(false) @map("is_read")
+  leadStatus   String?   @map("lead_status")
+  aiDraft      String?   @map("ai_draft")
+  aiCategory   String?   @map("ai_category")
+  aiConfidence Int?      @map("ai_confidence")
+  aiSentAt     DateTime? @map("ai_sent_at") @db.Timestamptz
+  messageId    String?   @map("message_id")
+  receivedAt   DateTime  @default(now()) @map("received_at") @db.Timestamptz
+
+  user    User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account EmailAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  send    EmailSend?   @relation(fields: [sendId], references: [id], onDelete: SetNull)
+
+  @@map("inbox_messages")
+}
+
+model Subscription {
+  id                      String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId                  String    @unique @map("user_id") @db.Uuid
+  plan                    String
+  status                  String
+  yookassaPaymentId       String?   @map("yookassa_payment_id")
+  yookassaPaymentMethodId String?   @map("yookassa_payment_method_id")
+  amount                  Int
+  billingPeriod           String    @default("monthly") @map("billing_period")
+  currentPeriodStart      DateTime? @map("current_period_start") @db.Timestamptz
+  currentPeriodEnd        DateTime? @map("current_period_end") @db.Timestamptz
+  cancelledAt             DateTime? @map("cancelled_at") @db.Timestamptz
+  renewalAttempts         Int       @default(0) @map("renewal_attempts")
+  renewalAttemptAt        DateTime? @map("renewal_attempt_at") @db.Timestamptz
+  createdAt               DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("subscriptions")
+}
+
+model PaymentEvent {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId          String   @map("user_id") @db.Uuid
+  eventType       String   @map("event_type")
+  yookassaEventId String?  @unique @map("yookassa_event_id")
+  amount          Int?
+  payload         Json?
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("payment_events")
+}
+
+model InboxAlert {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  accountId String   @map("account_id") @db.Uuid
+  alertType String   @map("alert_type")
+  message   String
+  isRead    Boolean  @default(false) @map("is_read")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  account EmailAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@map("inbox_alerts")
+}
