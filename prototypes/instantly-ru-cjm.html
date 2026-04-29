@@ -521,8 +521,167 @@ function Builder({ onLock }) {
 }
 
 // ═══════════════════════════════════════════════════════
+// SPARC PROGRESS DATA (обновляется после каждой фазы)
+// ═══════════════════════════════════════════════════════
+
+const SPARC_PROGRESS = {
+  phases: [
+    { id: "P0", label: "Phase 0 · Product Discovery", status: "done",
+      docs: ["product-discovery-brief.md", "chosen-cjm.md", "prototypes/instantly-ru-cjm.html"] },
+    { id: "P1", label: "Phase 1 · SPARC Documentation", status: "in_progress",
+      docs: [
+        { name: "Research_Findings.md", done: true },
+        { name: "Solution_Strategy.md", done: true },
+        { name: "PRD.md", done: true },
+        { name: "Specification.md", done: true },
+        { name: "Pseudocode.md", done: false },
+        { name: "Architecture.md", done: false },
+        { name: "Refinement.md", done: false },
+        { name: "Completion.md", done: false },
+      ]
+    },
+    { id: "P2", label: "Phase 2 · Validation", status: "pending", docs: [] },
+    { id: "P3", label: "Phase 3 · Toolkit Generation", status: "pending", docs: [] },
+    { id: "P4", label: "Phase 4 · Finalize", status: "pending", docs: [] },
+  ]
+};
+
+const FEATURE_MATRIX = {
+  mvp: [
+    "Email Account Management (SMTP/IMAP)",
+    "Warmup Engine Яндекс + Mail.ru + Gmail",
+    "Inbox Score Dashboard (обновляется 1/час)",
+    "Campaign Builder (sequences, scheduling)",
+    "Contact Management + CSV import",
+    "Unified Inbox (все ответы в одном месте)",
+    "YooKassa Billing (подписки + СБП)",
+    "DNS Checker (SPF/DKIM/DMARC)",
+    "Unsubscribe (38-ФЗ compliant)",
+  ],
+  v1: [
+    "AI Reply Agent (Claude API · 3 режима)",
+    "Multi-client Agency Workspace",
+    "amoCRM + Bitrix24 Integration",
+    "A/B Testing (subject lines, bodies)",
+    "Telegram Notifications",
+  ],
+  v2: [
+    "AI Leads Database (РФ B2B)",
+    "Telegram Outreach Channel",
+    "Public API + Webhooks",
+    "Zapier / n8n / Albato",
+  ],
+};
+
+const PRICING_PLANS = [
+  { name: "Старт", price: "₽1 990/мес", accounts: "3 аккаунта", ai: "❌", clients: "1 клиент", note: "Trial 7 дней" },
+  { name: "Про", price: "₽4 990/мес", accounts: "Unlimited", ai: "✅ Draft", clients: "1 клиент", note: "Ежегодно −20%" },
+  { name: "Агентство", price: "₽9 990/мес", accounts: "Unlimited", ai: "✅ Autopilot", clients: "Unlimited", note: "White-label v2" },
+];
+
+// ═══════════════════════════════════════════════════════
 // LOCKED RESULT
 // ═══════════════════════════════════════════════════════
+
+function SparcProgressBar() {
+  const statusColor = {
+    done: "bg-green-500",
+    in_progress: "bg-blue-500",
+    pending: "bg-slate-200",
+  };
+  const statusLabel = {
+    done: "✅",
+    in_progress: "⏳",
+    pending: "○",
+  };
+  return (
+    <div className="bg-white rounded-xl p-4 border border-slate-100 mb-4">
+      <div className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">📋 SPARC Pipeline Progress</div>
+      <div className="space-y-2">
+        {SPARC_PROGRESS.phases.map(phase => (
+          <div key={phase.id} className="flex items-start gap-2">
+            <span className="text-base leading-none mt-0.5">{statusLabel[phase.status]}</span>
+            <div className="flex-1">
+              <div className={`text-xs font-semibold ${phase.status === 'pending' ? 'text-slate-400' : 'text-slate-800'}`}>
+                {phase.label}
+              </div>
+              {phase.status === "in_progress" && Array.isArray(phase.docs) && phase.docs[0]?.name && (
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {phase.docs.map(doc => (
+                    <span key={doc.name}
+                      className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${doc.done ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-400'}`}>
+                      {doc.done ? "✓" : "○"} {doc.name}
+                    </span>
+                  ))}
+                </div>
+              )}
+              {phase.status === "done" && Array.isArray(phase.docs) && phase.docs[0] && (
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {phase.docs.map(d => (
+                    <span key={d} className="text-[10px] px-1.5 py-0.5 rounded font-mono bg-green-100 text-green-700">✓ {d}</span>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function FeatureMatrixPanel() {
+  const [open, setOpen] = React.useState(false);
+  return (
+    <div className="bg-white rounded-xl border border-slate-100 mb-4 overflow-hidden">
+      <button onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between p-4 text-left hover:bg-slate-50 transition-colors">
+        <div className="text-xs font-bold text-slate-500 uppercase tracking-wide">🗂️ Feature Matrix (MVP → v2.0)</div>
+        <span className="text-slate-400 text-xs">{open ? "▲" : "▼"}</span>
+      </button>
+      {open && (
+        <div className="px-4 pb-4 space-y-3 fade-in">
+          {[
+            { label: "MVP (M1–M3)", color: "bg-blue-50 text-blue-700 border-blue-100", items: FEATURE_MATRIX.mvp },
+            { label: "v1.0 (M4–M9)", color: "bg-violet-50 text-violet-700 border-violet-100", items: FEATURE_MATRIX.v1 },
+            { label: "v2.0 (M10–M18)", color: "bg-slate-50 text-slate-500 border-slate-100", items: FEATURE_MATRIX.v2 },
+          ].map(tier => (
+            <div key={tier.label}>
+              <div className={`text-[10px] font-bold px-2 py-0.5 rounded-full border inline-block mb-1.5 ${tier.color}`}>{tier.label}</div>
+              <ul className="space-y-0.5">
+                {tier.items.map(f => (
+                  <li key={f} className="text-xs text-slate-600 flex items-start gap-1.5">
+                    <span className="text-slate-300 mt-0.5">•</span>{f}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PricingPanel() {
+  return (
+    <div className="bg-white rounded-xl p-4 border border-slate-100 mb-4">
+      <div className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">💳 Pricing (зафиксировано)</div>
+      <div className="space-y-2">
+        {PRICING_PLANS.map(plan => (
+          <div key={plan.name} className="flex items-center gap-2 text-xs">
+            <span className={`w-20 font-bold ${plan.name === 'Про' ? 'text-blue-700' : 'text-slate-700'}`}>{plan.name}</span>
+            <span className="font-mono text-slate-900 w-28">{plan.price}</span>
+            <span className="text-slate-500 flex-1">{plan.accounts} · AI {plan.ai}</span>
+          </div>
+        ))}
+        <div className="text-[10px] text-slate-400 mt-1 pt-2 border-t border-slate-100">
+          Оплата: ЮКасса / СБП / T-Pay · Trial 7 дней без карты
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function LockedResult({ locked }) {
   const isCustom = locked.type === "custom";
@@ -532,34 +691,42 @@ function LockedResult({ locked }) {
     <div className="fade-in">
       <div className="bg-green-50 border-2 border-green-400 rounded-2xl p-5 mb-4">
         <div className="text-lg font-bold text-green-800 mb-1">✅ CJM зафиксирован!</div>
-        <div className="text-sm text-green-700">
-          {isCustom ? "Кастомный микс" : `Вариант ${vk}: ${v.name}`} передаётся в Phase 1 (SPARC документацию)
+        <div className="text-sm text-green-700 mb-3">
+          {isCustom ? "Кастомный микс" : `Вариант ${vk}: ${v.name} — SPARC документация в процессе`}
+        </div>
+        <div className="grid grid-cols-2 gap-2 text-xs">
+          <div className="bg-white/60 rounded-lg p-2">
+            <div className="font-semibold text-green-800">Aha Moment</div>
+            <div className="text-green-700">{v?.aha.wow}</div>
+          </div>
+          <div className="bg-white/60 rounded-lg p-2">
+            <div className="font-semibold text-green-800">Entry USP</div>
+            <div className="text-green-700">{v?.landing.hl}</div>
+          </div>
+          <div className="bg-white/60 rounded-lg p-2">
+            <div className="font-semibold text-green-800">Paywall</div>
+            <div className="text-green-700">{v?.pay.when}</div>
+          </div>
+          <div className="bg-white/60 rounded-lg p-2">
+            <div className="font-semibold text-green-800">Growth Hook</div>
+            <div className="text-green-700">{v?.inv.hook}</div>
+          </div>
         </div>
       </div>
-      <div className="bg-white rounded-xl p-4 border border-slate-100 space-y-3">
-        <div className="text-xs font-bold text-slate-500 uppercase tracking-wide">Контекст для SPARC Planning →</div>
-        {isCustom ? (
-          Object.entries(locked.mix).map(([s,k]) => (
-            <div key={s} className="flex items-center gap-2 text-xs">
-              <span className="w-24 text-slate-400">{SCREEN_LABELS[s]}</span>
-              <span className="font-semibold px-2 py-0.5 rounded-full"
-                    style={{background:VARIANTS[k].c.light, color:VARIANTS[k].c.text}}>
-                {VARIANTS[k].emoji} {k}: {VARIANTS[k].name}
-              </span>
-            </div>
-          ))
-        ) : (
-          <div className="space-y-2 text-xs text-slate-600">
-            <div><strong>Aha Moment:</strong> {v.aha.wow}</div>
-            <div><strong>Entry:</strong> {v.landing.hl}</div>
-            <div><strong>Paywall:</strong> {v.pay.when}</div>
-            <div><strong>Growth Loop:</strong> {v.dash.hook}</div>
-          </div>
-        )}
-      </div>
-      <div className="mt-4 bg-blue-50 rounded-xl p-3 border border-blue-100">
-        <div className="text-xs font-semibold text-blue-700 mb-1">🚀 Следующий шаг</div>
-        <div className="text-xs text-blue-600">Введите "ок" для перехода в Phase 1: SPARC документация на основе этого CJM</div>
+
+      <SparcProgressBar />
+      <FeatureMatrixPanel />
+      <PricingPanel />
+
+      <div className="bg-blue-50 rounded-xl p-3 border border-blue-100">
+        <div className="text-xs font-semibold text-blue-700 mb-1">⏭️ Следующие шаги SPARC</div>
+        <div className="space-y-1 text-xs text-blue-600">
+          <div>○ Pseudocode.md — алгоритмы warmup + AI Reply + campaigns</div>
+          <div>○ Architecture.md — C4 диаграммы, Docker Compose, security arch</div>
+          <div>○ Refinement.md — edge cases, test strategy, performance</div>
+          <div>○ Completion.md — deploy plan, CI/CD, monitoring</div>
+          <div className="pt-1 text-blue-400">Затем: Validation → Toolkit → Finalize</div>
+        </div>
       </div>
     </div>
   );
@@ -573,8 +740,9 @@ function App() {
   const [activeVariant, setActiveVariant] = useState("A");
   const [activeScreen, setActiveScreen] = useState("landing");
   const [showCjm, setShowCjm] = useState(false);
-  const [activeTab, setActiveTab] = useState("explore"); // explore | compare | build | locked
-  const [locked, setLocked] = useState(null);
+  const [activeTab, setActiveTab] = useState("locked"); // explore | compare | build | locked
+  // Вариант A зафиксирован — открываем Результат по умолчанию
+  const [locked, setLocked] = useState({ type: "variant", variantKey: "A" });
 
   const v = VARIANTS[activeVariant];
   const ScreenComp = SCREEN_COMPONENTS[activeScreen];
@@ -596,6 +764,11 @@ function App() {
           <div>
             <h1 className="text-xl font-black text-slate-900">Поток · CJM Prototype</h1>
             <p className="text-xs text-slate-500 mt-0.5">Instantly.ai аналог для рынка РФ · Module 2.5 · Режим DEEP</p>
+            <div className="flex items-center gap-2 mt-1.5">
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-semibold">✅ P0 Done</span>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-semibold">⏳ P1 In Progress (4/8 docs)</span>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-400 font-semibold">○ P2 Pending</span>
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <button
