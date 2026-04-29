@@ -540,9 +540,30 @@ const SPARC_PROGRESS = {
         { name: "Completion.md", done: true },
       ]
     },
-    { id: "P2", label: "Phase 2 · Validation", status: "pending", docs: [] },
-    { id: "P3", label: "Phase 3 · Toolkit Generation", status: "pending", docs: [] },
-    { id: "P4", label: "Phase 4 · Finalize", status: "pending", docs: [] },
+    { id: "P2", label: "Phase 2 · Validation", status: "done",
+      docs: [
+        { name: "validation-report.md", done: true },
+        { name: "test-scenarios.md", done: true },
+      ]
+    },
+    { id: "P3", label: "Phase 3 · Toolkit Generation", status: "done",
+      docs: [
+        { name: "CLAUDE.md", done: true },
+        { name: ".claude/agents/ (3)", done: true },
+        { name: ".claude/commands/ (10)", done: true },
+        { name: ".claude/rules/ (7)", done: true },
+        { name: ".claude/skills/ (11)", done: true },
+        { name: "DEVELOPMENT_GUIDE.md", done: true },
+      ]
+    },
+    { id: "P4", label: "Phase 4 · Finalize", status: "done",
+      docs: [
+        { name: "docker-compose.yml", done: true },
+        { name: "apps/*/Dockerfile (3)", done: true },
+        { name: ".env.example", done: true },
+        { name: "README.md", done: true },
+      ]
+    },
   ]
 };
 
@@ -729,7 +750,10 @@ function LockedResult({ locked }) {
           <div>✅ Architecture.md — C4, Docker Compose, security arch</div>
           <div>✅ Refinement.md — edge cases, test strategy, performance</div>
           <div>✅ Completion.md — deploy runbook, CI/CD, monitoring, launch</div>
-          <div className="pt-1 font-semibold text-green-700">→ Phase 2: Validation (requirements-validator swarm)</div>
+          <div className="pt-1 font-semibold text-green-700">✅ Phase 2: Validation — 84/100 (🟡 CAVEATS, 0 BLOCKED)</div>
+          <div className="font-semibold text-green-700">✅ Phase 3: Toolkit — 55 files (agents, commands, rules, skills)</div>
+          <div className="font-semibold text-green-700">✅ Phase 4: Finalize — docker-compose.yml, Dockerfiles, README.md</div>
+          <div className="pt-1 font-black text-green-800">🚀 READY TO CODE → /start или /run mvp</div>
         </div>
       </div>
     </div>
@@ -771,7 +795,9 @@ function App() {
             <div className="flex items-center gap-2 mt-1.5">
               <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-semibold">✅ P0 Done</span>
               <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-semibold">✅ P1 Done (8/8 docs)</span>
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-400 font-semibold">○ P2 Pending</span>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-semibold">✅ P2 Done (84/100)</span>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-semibold">✅ P3 Done (55 files)</span>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-semibold">✅ P4 Done · v0.1.0-scaffold</span>
             </div>
           </div>
           <div className="flex items-center gap-2">
