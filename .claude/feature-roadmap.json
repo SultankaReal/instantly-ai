@@ -1,0 +1,97 @@
+{
+  "project": "Поток",
+  "version": "1.0",
+  "updated": "2026-04-29",
+  "features": [
+    {
+      "id": "F01",
+      "name": "auth-module",
+      "title": "Auth Module",
+      "priority": "P0",
+      "stories": ["US-01", "US-02", "US-03"],
+      "status": "pending",
+      "est_hours": 6,
+      "docs_path": "docs/features/auth-module",
+      "notes": "JWT HS256, bcrypt cost 12, Redis blacklist, password reset single-use token"
+    },
+    {
+      "id": "F02",
+      "name": "email-account-management",
+      "title": "Email Account Management",
+      "priority": "P0",
+      "stories": ["US-04", "US-05"],
+      "status": "pending",
+      "est_hours": 8,
+      "docs_path": "docs/features/email-account-management",
+      "notes": "AES-256-GCM credential encryption, DNS check (SPF/DKIM/DMARC), plan limit enforcement"
+    },
+    {
+      "id": "F03",
+      "name": "warmup-engine",
+      "title": "Warmup Engine",
+      "priority": "P1",
+      "stories": ["US-06"],
+      "status": "pending",
+      "est_hours": 10,
+      "docs_path": "docs/features/warmup-engine",
+      "notes": "BullMQ ramp-up scheduler, SMTP send, IMAP spam check, partner reply 15% chance"
+    },
+    {
+      "id": "F04",
+      "name": "inbox-score",
+      "title": "Inbox Score Dashboard",
+      "priority": "P1",
+      "stories": ["US-07", "US-08", "US-09"],
+      "status": "pending",
+      "est_hours": 6,
+      "docs_path": "docs/features/inbox-score",
+      "notes": "Weighted formula (50/30/20%), 60min cron, color indicator, score drop alert"
+    },
+    {
+      "id": "F05",
+      "name": "campaign-engine",
+      "title": "Campaign Engine",
+      "priority": "P2",
+      "stories": ["US-10", "US-11", "US-12"],
+      "status": "pending",
+      "est_hours": 12,
+      "docs_path": "docs/features/campaign-engine",
+      "notes": "Sequence steps, CSV import, reply detection stops follow-ups, 38-ФЗ unsubscribe link"
+    },
+    {
+      "id": "F06",
+      "name": "unified-inbox",
+      "title": "Unified Inbox",
+      "priority": "P3",
+      "stories": ["US-13", "US-14"],
+      "status": "pending",
+      "est_hours": 8,
+      "docs_path": "docs/features/unified-inbox",
+      "notes": "Thread grouping, read/unread, manual reply, lead status tags"
+    },
+    {
+      "id": "F07",
+      "name": "yookassa-billing",
+      "title": "YooKassa Billing",
+      "priority": "P2",
+      "stories": ["US-15", "US-16", "US-17"],
+      "status": "pending",
+      "est_hours": 8,
+      "docs_path": "docs/features/yookassa-billing",
+      "notes": "Checkout, HMAC webhook, recurring billing cron, 3 retry attempts, cancel + plan downgrade"
+    },
+    {
+      "id": "F08",
+      "name": "ai-reply-agent",
+      "title": "AI Reply Agent",
+      "priority": "P3",
+      "stories": [],
+      "status": "pending",
+      "est_hours": 10,
+      "docs_path": "docs/features/ai-reply-agent",
+      "notes": "v1.0 feature, gated by ai_reply_enabled flag. Claude API, 5 categories, autopilot/draft/manual modes"
+    }
+  ],
+  "mvp_features": ["F01", "F02", "F03", "F04", "F05", "F06", "F07"],
+  "v1_features": ["F08"]
+}

@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd /Users/nkalniyazov/instantly-ai && if git diff --quiet myinsights/ 2>/dev/null; then echo 'No insights changes'; else git add myinsights/ && git commit -m 'docs(insights): update knowledge base' && git push origin main; fi"
+          }
+        ]
+      }
+    ]
+  }
+}
