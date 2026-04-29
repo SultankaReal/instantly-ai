@@ -91,10 +91,11 @@ export async function billingProcessor(_job: Job<RecurringBillingJob>): Promise<
       })
 
       // On success: extend period by 1 month (webhook will confirm, but we optimistically update)
+      const periodBase = sub.currentPeriodEnd ?? now
       const nextPeriodEnd =
         sub.billingPeriod === 'annual'
-          ? new Date(sub.currentPeriodEnd.getTime() + 365 * 24 * 60 * 60 * 1000)
-          : new Date(sub.currentPeriodEnd.getTime() + 30 * 24 * 60 * 60 * 1000)
+          ? new Date(periodBase.getTime() + 365 * 24 * 60 * 60 * 1000)
+          : new Date(periodBase.getTime() + 30 * 24 * 60 * 60 * 1000)
 
       await prisma.subscription.update({
         where: { id: sub.id },

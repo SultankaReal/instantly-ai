@@ -126,8 +126,8 @@ export async function campaignSendProcessor(job: Job<EmailSendJob>): Promise<voi
       })
       await prisma.unsubscribe.upsert({
         where: { email: toEmail },
-        create: { email: toEmail, reason: 'bounce' },
-        update: { reason: 'bounce' },
+        create: { email: toEmail, campaignId, reason: 'bounce' },
+        update: {},
       })
       // Don't rethrow permanent failures — no retry
       return

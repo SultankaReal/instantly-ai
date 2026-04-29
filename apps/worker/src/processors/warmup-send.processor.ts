@@ -199,8 +199,8 @@ export async function warmupSendProcessor(job: Job<WarmupSendJob>): Promise<void
       )
 
       for await (const msg of messages) {
-        const msgId = msg.envelope.messageId ?? ''
-        if (msgId === messageId || msg.envelope.from?.[0]?.address === senderCreds.email) {
+        const msgId = msg.envelope?.messageId ?? ''
+        if (msgId === messageId || msg.envelope?.from?.[0]?.address === senderCreds.email) {
           inboxLanded = true
           inboxUid = msg.uid
           break
@@ -256,7 +256,7 @@ export async function warmupSendProcessor(job: Job<WarmupSendJob>): Promise<void
           )
 
           for await (const msg of spamMessages) {
-            if (msg.envelope.from?.[0]?.address === senderCreds.email) {
+            if (msg.envelope?.from?.[0]?.address === senderCreds.email) {
               // Move from Spam to INBOX (critical: ESP sees this as "not spam")
               await imapClient.messageMove({ uid: msg.uid }, 'INBOX')
               movedFromSpam = true

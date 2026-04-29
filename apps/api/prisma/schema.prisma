@@ -107,10 +107,10 @@ model Campaign {
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
-  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  fromAccount EmailAccount? @relation(fields: [fromAccountId], references: [id], onDelete: SetNull)
-  steps       CampaignStep[]
-  emailSends  EmailSend[]
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fromAccount  EmailAccount? @relation(fields: [fromAccountId], references: [id], onDelete: SetNull)
+  steps        CampaignStep[]
+  emailSends   EmailSend[]
 
   @@map("campaigns")
 }
@@ -151,6 +151,7 @@ model Contact {
 
 model Unsubscribe {
   email          String   @id
+  campaignId     String?  @map("campaign_id") @db.Uuid
   reason         String?
   unsubscribedAt DateTime @default(now()) @map("unsubscribed_at") @db.Timestamptz
 
@@ -165,6 +166,7 @@ model EmailSend {
   accountId   String    @map("account_id") @db.Uuid
   status      String    @default("queued")
   messageId   String?   @map("message_id")
+  scheduledAt DateTime? @map("scheduled_at") @db.Timestamptz
   openedAt    DateTime? @map("opened_at") @db.Timestamptz
   repliedAt   DateTime? @map("replied_at") @db.Timestamptz
   bouncedAt   DateTime? @map("bounced_at") @db.Timestamptz
@@ -218,6 +220,7 @@ model Subscription {
   billingPeriod           String    @default("monthly") @map("billing_period")
   currentPeriodStart      DateTime? @map("current_period_start") @db.Timestamptz
   currentPeriodEnd        DateTime? @map("current_period_end") @db.Timestamptz
+  cancelAtPeriodEnd       Boolean   @default(false) @map("cancel_at_period_end")
   cancelledAt             DateTime? @map("cancelled_at") @db.Timestamptz
   renewalAttempts         Int       @default(0) @map("renewal_attempts")
   renewalAttemptAt        DateTime? @map("renewal_attempt_at") @db.Timestamptz
@@ -243,12 +246,13 @@ model PaymentEvent {
 }
 
 model InboxAlert {
-  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  accountId String   @map("account_id") @db.Uuid
-  alertType String   @map("alert_type")
-  message   String
-  isRead    Boolean  @default(false) @map("is_read")
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  accountId  String    @map("account_id") @db.Uuid
+  alertType  String    @map("alert_type")
+  message    String
+  isRead     Boolean   @default(false) @map("is_read")
+  resolvedAt DateTime? @map("resolved_at") @db.Timestamptz
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz
 
   account EmailAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
 

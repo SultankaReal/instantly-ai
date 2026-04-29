@@ -57,8 +57,8 @@ export async function inboxScanProcessor(job: Job<InboxScanJob>): Promise<void> 
     })
 
     for await (const msg of messages) {
-      const messageId = msg.envelope.messageId ?? `${accountId}-${msg.uid}`
-      const inReplyTo = msg.envelope.inReplyTo ?? undefined
+      const messageId = msg.envelope?.messageId ?? `${accountId}-${msg.uid}`
+      const inReplyTo = msg.envelope?.inReplyTo ?? undefined
 
       // Skip if already processed
       const existing = await prisma.inboxMessage.findFirst({
@@ -77,9 +77,9 @@ export async function inboxScanProcessor(job: Job<InboxScanJob>): Promise<void> 
         })
       }
 
-      const fromEmail = msg.envelope.from?.[0]?.address ?? ''
-      const fromName = msg.envelope.from?.[0]?.name ?? ''
-      const subject = msg.envelope.subject ?? ''
+      const fromEmail = msg.envelope?.from?.[0]?.address ?? ''
+      const fromName = msg.envelope?.from?.[0]?.name ?? ''
+      const subject = msg.envelope?.subject ?? ''
 
       // Extract body text from source
       const rawSource = msg.source ? msg.source.toString('utf8') : ''
@@ -98,7 +98,7 @@ export async function inboxScanProcessor(job: Job<InboxScanJob>): Promise<void> 
           subject,
           bodyText,
           bodyHtml: null, // sanitize only at render time
-          receivedAt: msg.envelope.date ?? new Date(),
+          receivedAt: msg.envelope?.date ?? new Date(),
         },
       })
 

@@ -84,7 +84,6 @@ export async function dnsCheckProcessor(job: Job<DnsCheckJob>): Promise<void> {
         alertType: 'dmarc_missing',
         message:
           'Настройте DMARC запись для вашего домена чтобы улучшить доставляемость',
-        resolvedAt: null,
       },
     })
   }
@@ -96,7 +95,6 @@ export async function dnsCheckProcessor(job: Job<DnsCheckJob>): Promise<void> {
         accountId,
         alertType: 'spf_missing',
         message: 'Настройте SPF запись для вашего домена чтобы предотвратить попадание в спам',
-        resolvedAt: null,
       },
     })
   }
@@ -108,7 +106,6 @@ export async function dnsCheckProcessor(job: Job<DnsCheckJob>): Promise<void> {
         accountId,
         alertType: 'dkim_missing',
         message: 'Настройте DKIM подпись для вашего домена чтобы улучшить доставляемость',
-        resolvedAt: null,
       },
     })
   }

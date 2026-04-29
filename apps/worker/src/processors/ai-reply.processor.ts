@@ -160,21 +160,23 @@ export async function aiReplyProcessor(job: Job<AIReplyJob>): Promise<void> {
   })
 
   const threadContext = threadMessages
-    .map((m) => `${m.fromEmail}: ${m.bodyText.slice(0, 300)}`)
+    .map((m) => `${m.fromEmail}: ${(m.bodyText ?? '').slice(0, 300)}`)
     .join('\n\n')
 
   // Load campaign context if linked
   let productDescription: string | null = null
+  let linkedCampaignId: string | null = null
   if (message.sendId) {
     const send = await prisma.emailSend.findUnique({
       where: { id: message.sendId },
       include: { campaign: true },
     })
     productDescription = (send?.campaign as { productDescription?: string })?.productDescription ?? null
+    linkedCampaignId = send?.campaignId ?? null
   }
 
   // 3. Call Anthropic Claude API to classify reply
-  const classification = await classifyReply(message.bodyText)
+  const classification = await classifyReply(message.bodyText ?? '')
 
   // 4. Determine action
   const action = determineAction(classification, mode, confidenceThreshold)
@@ -204,8 +206,8 @@ export async function aiReplyProcessor(job: Job<AIReplyJob>): Promise<void> {
       })
       await prisma.unsubscribe.upsert({
         where: { email: message.fromEmail },
-        create: { email: message.fromEmail, reason: 'manual' },
-        update: { reason: 'manual' },
+        create: { email: message.fromEmail, campaignId: linkedCampaignId ?? undefined, reason: 'manual' },
+        update: {},
       })
     }
 
@@ -258,7 +260,7 @@ export async function aiReplyProcessor(job: Job<AIReplyJob>): Promise<void> {
   }
 
   // Generate AI draft (for 'draft' or 'autopilot' actions)
-  const draft = await generateAIReply(message.bodyText, threadContext, productDescription)
+  const draft = await generateAIReply(message.bodyText ?? '', threadContext, productDescription)
 
   await prisma.inboxMessage.update({
     where: { id: messageId },
