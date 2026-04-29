@@ -115,6 +115,7 @@ export const campaignsRoutes: FastifyPluginAsync = async (fastify) => {
       data: {
         ...campaignData,
         userId,
+        fromAccountId: campaignData.fromAccountId ?? null,
         steps: {
           create: steps.map((step) => ({
             stepNumber: step.stepNumber,
@@ -174,9 +175,13 @@ export const campaignsRoutes: FastifyPluginAsync = async (fastify) => {
       if (!account) throw new NotFoundError('account_not_found')
     }
 
+    const { fromAccountId: rawFromAccountId, ...restData } = body.data
     const updated = await fastify.prisma.campaign.update({
       where: { id: campaign.id },
-      data: body.data,
+      data: {
+        ...restData,
+        ...(rawFromAccountId !== undefined ? { fromAccountId: rawFromAccountId ?? null } : {}),
+      },
       include: { steps: { orderBy: { stepNumber: 'asc' } } },
     })
 
@@ -380,14 +385,15 @@ export const campaignsRoutes: FastifyPluginAsync = async (fastify) => {
         const email = cols[emailIdx]?.toLowerCase()
         if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) continue
 
-        contacts.push({
-          userId: campaign.userId,
+        const contact: { userId: string; email: string; firstName?: string; lastName?: string; company?: string; position?: string } = {
+          userId: campaign.userId as string,
           email,
-          firstName: firstNameIdx >= 0 ? (cols[firstNameIdx] ?? undefined) : undefined,
-          lastName: lastNameIdx >= 0 ? (cols[lastNameIdx] ?? undefined) : undefined,
-          company: companyIdx >= 0 ? (cols[companyIdx] ?? undefined) : undefined,
-          position: positionIdx >= 0 ? (cols[positionIdx] ?? undefined) : undefined,
-        })
+        }
+        if (firstNameIdx >= 0 && cols[firstNameIdx]) contact.firstName = cols[firstNameIdx]
+        if (lastNameIdx >= 0 && cols[lastNameIdx]) contact.lastName = cols[lastNameIdx]
+        if (companyIdx >= 0 && cols[companyIdx]) contact.company = cols[companyIdx]
+        if (positionIdx >= 0 && cols[positionIdx]) contact.position = cols[positionIdx]
+        contacts.push(contact)
       }
 
       if (contacts.length === 0) {
@@ -406,10 +412,10 @@ export const campaignsRoutes: FastifyPluginAsync = async (fastify) => {
             },
             create: contact,
             update: {
-              firstName: contact.firstName ?? undefined,
-              lastName: contact.lastName ?? undefined,
-              company: contact.company ?? undefined,
-              position: contact.position ?? undefined,
+              firstName: contact.firstName ?? null,
+              lastName: contact.lastName ?? null,
+              company: contact.company ?? null,
+              position: contact.position ?? null,
             },
           }),
         ),

@@ -1,4 +1,4 @@
-import Fastify from 'fastify'
+import Fastify, { type FastifyError } from 'fastify'
 import cors from '@fastify/cors'
 import rateLimit from '@fastify/rate-limit'
 import multipart from '@fastify/multipart'
@@ -68,7 +68,7 @@ export async function buildApp(): Promise<ReturnType<typeof Fastify>> {
   // Global error handler
   // ---------------------------------------------------------------------------
 
-  app.setErrorHandler((error, request, reply) => {
+  app.setErrorHandler((error: FastifyError, request, reply) => {
     if (error instanceof AppError) {
       return reply.code(error.statusCode).send({
         error: error.code,
@@ -77,7 +77,7 @@ export async function buildApp(): Promise<ReturnType<typeof Fastify>> {
     }
 
     // Fastify validation errors
-    if (error.statusCode === 400 && 'validation' in error) {
+    if (error.statusCode === 400 && error.validation != null) {
       return reply.code(400).send({
         error: 'validation_error',
         message: error.message,

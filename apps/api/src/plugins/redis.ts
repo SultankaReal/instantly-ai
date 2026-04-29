@@ -1,10 +1,10 @@
 import fp from 'fastify-plugin'
-import Redis from 'ioredis'
+import { type Redis as RedisType, Redis } from 'ioredis'
 import type { FastifyPluginAsync } from 'fastify'
 
 declare module 'fastify' {
   interface FastifyInstance {
-    redis: Redis
+    redis: RedisType
   }
 }
 
@@ -14,7 +14,7 @@ const redisPlugin: FastifyPluginAsync = async (fastify) => {
     enableReadyCheck: true,
   })
 
-  redis.on('error', (err) => {
+  redis.on('error', (err: Error) => {
     fastify.log.error({ err }, 'Redis error')
   })
 
