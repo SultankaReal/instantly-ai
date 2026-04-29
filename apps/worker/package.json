@@ -1,0 +1,33 @@
+{
+  "name": "@potok/worker",
+  "version": "0.1.0",
+  "private": true,
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "bullmq": "^5.7.0",
+    "ioredis": "^5.4.1",
+    "nodemailer": "^6.9.16",
+    "imapflow": "^1.0.169",
+    "@anthropic-ai/sdk": "^0.39.0",
+    "@prisma/client": "^5.22.0",
+    "bcryptjs": "^2.4.3",
+    "dotenv": "^16.4.7",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/nodemailer": "^6.4.17",
+    "@types/bcryptjs": "^2.4.6",
+    "typescript": "^5.7.2",
+    "tsx": "^4.19.2",
+    "prisma": "^5.22.0",
+    "vitest": "^2.1.8"
+  }
+}
