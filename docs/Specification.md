@@ -68,6 +68,52 @@ Feature: Authentication
 
 ---
 
+### US-03: Сброс пароля
+
+**Story:** Как пользователь, я хочу сбросить пароль через email, чтобы восстановить доступ к аккаунту.
+
+```gherkin
+Feature: Password Reset
+
+  Scenario: Запрос сброса пароля (success)
+    Given пользователь с email user@yandex.ru зарегистрирован
+    When я отправляю POST /api/auth/forgot-password с { email: "user@yandex.ru" }
+    Then ответ 200 (независимо от того, существует ли email — no enumeration)
+    And на email отправляется письмо с HMAC-signed reset token (TTL 1h)
+    And токен записывается в Redis с ключом reset:{token}: userId TTL 3600s
+
+  Scenario: Неизвестный email (silent 200)
+    When я отправляю POST /api/auth/forgot-password с { email: "unknown@test.com" }
+    Then ответ 200 (не раскрываем, существует ли email)
+    And письмо НЕ отправляется
+    And Redis НЕ создаёт ключ reset:*
+
+  Scenario: Успешный сброс пароля
+    Given существует валидный reset token (< 1 часа с момента создания)
+    When я отправляю POST /api/auth/reset-password с { token: "...", newPassword: "NewPass123!" }
+    Then ответ 200 { success: true }
+    And password_hash обновляется (bcrypt cost 12)
+    And Redis ключ reset:{token} удаляется (token стал одноразовым)
+    And пользователь может войти с новым паролем
+
+  Scenario: Просроченный/использованный токен
+    Given reset token просрочен (> 1 часа) или уже использован
+    When я отправляю POST /api/auth/reset-password с этим токеном
+    Then ответ 400 { error: "token_expired_or_used" }
+
+  Scenario: Rate limit на запрос сброса
+    Given пользователь отправил 3 запроса /api/auth/forgot-password за 1 час
+    When он отправляет 4-й запрос
+    Then ответ 429 Too Many Requests
+    And ключ создан НЕ будет
+```
+
+**API Contract:**
+- `POST /api/auth/forgot-password` — Body: `{ email: string }` → Response 200 (always)
+- `POST /api/auth/reset-password` — Body: `{ token: string, newPassword: string }` → Response 200 | 400
+
+---
+
 ### US-04: Подключение email аккаунта
 
 **Story:** Как пользователь, я хочу подключить Яндекс-аккаунт через SMTP/IMAP, чтобы добавить его в warmup пул.
@@ -289,8 +335,11 @@ CREATE TABLE users (
   email         TEXT UNIQUE NOT NULL,
   password_hash TEXT NOT NULL,         -- bcrypt cost 12
   full_name     TEXT,
-  plan          TEXT NOT NULL DEFAULT 'trial',  -- trial|starter|pro|agency
+  plan          TEXT NOT NULL DEFAULT 'trial',  -- trial|free|starter|pro|agency
   trial_ends_at TIMESTAMPTZ,
+  ai_reply_enabled        BOOLEAN NOT NULL DEFAULT FALSE,
+  ai_reply_mode           TEXT NOT NULL DEFAULT 'draft', -- draft|autopilot|manual
+  ai_confidence_threshold INT NOT NULL DEFAULT 80,       -- 0-100, только для autopilot
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -309,6 +358,12 @@ CREATE TABLE email_accounts (
   inbox_score     INT DEFAULT 0,        -- 0-100
   daily_limit     INT NOT NULL DEFAULT 50,
   in_warmup_pool  BOOLEAN DEFAULT FALSE,
+  warmup_started_at TIMESTAMPTZ,        -- когда запущен прогрев (для расчёта daysInWarmup)
+  last_scanned_at   TIMESTAMPTZ,        -- последнее IMAP сканирование входящих
+  dns_spf         BOOLEAN,              -- SPF запись настроена
+  dns_dkim        BOOLEAN,              -- DKIM запись настроена
+  dns_dmarc       BOOLEAN,              -- DMARC запись настроена
+  dns_checked_at  TIMESTAMPTZ,          -- последняя проверка DNS
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -329,7 +384,7 @@ CREATE TABLE inbox_score_snapshots (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   account_id  UUID NOT NULL REFERENCES email_accounts(id) ON DELETE CASCADE,
   score       INT NOT NULL,
-  provider    TEXT NOT NULL DEFAULT 'yandex', -- yandex|mailru|gmail
+  provider    TEXT NOT NULL DEFAULT 'combined', -- yandex|mailru|gmail|combined
   snapshotted_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -391,7 +446,7 @@ CREATE TABLE email_sends (
   step_id       UUID NOT NULL REFERENCES campaign_steps(id),
   contact_id    UUID NOT NULL REFERENCES contacts(id),
   account_id    UUID NOT NULL REFERENCES email_accounts(id),
-  status        TEXT NOT NULL DEFAULT 'queued', -- queued|sent|delivered|opened|replied|bounced
+  status        TEXT NOT NULL DEFAULT 'queued', -- queued|sent|delivered|opened|replied|bounced|skipped|cancelled
   message_id    TEXT,                  -- SMTP Message-ID для tracking
   opened_at     TIMESTAMPTZ,
   replied_at    TIMESTAMPTZ,
@@ -417,6 +472,9 @@ CREATE TABLE inbox_messages (
   is_read         BOOLEAN DEFAULT FALSE,
   lead_status     TEXT,               -- interested|not_interested|callback|spam
   ai_draft        TEXT,               -- черновик AI Reply Agent
+  ai_category     TEXT,               -- INTERESTED|NOT_INTERESTED|OUT_OF_OFFICE|QUESTION|DO_NOT_CONTACT
+  ai_confidence   INT,                -- 0-100, уверенность модели
+  ai_sent_at      TIMESTAMPTZ,        -- когда AI отправил ответ в режиме autopilot
   received_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -435,6 +493,8 @@ CREATE TABLE subscriptions (
   current_period_start  TIMESTAMPTZ,
   current_period_end    TIMESTAMPTZ,
   cancelled_at          TIMESTAMPTZ,
+  renewal_attempts      INT NOT NULL DEFAULT 0,    -- счётчик неудачных попыток renewal
+  renewal_attempt_at    TIMESTAMPTZ,               -- время последней попытки
   created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 

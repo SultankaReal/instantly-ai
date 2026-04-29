@@ -118,12 +118,27 @@ async function login(email: string, password: string): Promise<AuthResult> {
   // Same error for wrong email AND wrong password (prevent enumeration)
   if !user || !isValid → throw UnauthorizedError('invalid_credentials')
 
-  // Check trial expiry → downgrade if expired
+  // Check trial expiry → downgrade to free if expired
   if user.plan === 'trial' && user.trialEndsAt < now() {
-    await db.users.update(user.id, { plan: 'trial' })  // keep trial, block features
+    await db.users.update(user.id, { plan: 'free' })  // downgrade: no active campaigns, read-only
+    user.plan = 'free'
   }
 
   return issueTokenPair(user.id)
+}
+
+// POST /api/auth/refresh
+async function refreshToken(token: string): Promise<{ accessToken: string }> {
+  payload = jwt.verify(token, JWT_REFRESH_SECRET)  // throws on invalid/expired
+  if payload.type !== 'refresh' → throw UnauthorizedError()
+
+  // Verify token is not blacklisted (still in Redis)
+  exists = await redis.get(`refresh:${payload.sub}:${token}`)
+  if !exists → throw UnauthorizedError('token_revoked')
+
+  // Issue new access token only (refresh token stays valid until expiry)
+  accessToken = jwt.sign({ sub: payload.sub, type: 'access' }, JWT_SECRET, { expiresIn: '15m' })
+  return { accessToken }
 }
 
 // Token issuance
@@ -156,6 +171,34 @@ async function authenticate(req): Promise<User> {
   if !user → throw UnauthorizedError()
 
   return user
+}
+
+// POST /api/auth/forgot-password
+async function forgotPassword(email: string): Promise<void> {
+  // Always return 200 — do not reveal whether email exists
+  user = await db.users.findByEmail(email.toLowerCase().trim())
+  if !user → return  // silent: no email sent, no error
+
+  // Rate limit: max 3 reset requests per hour per email
+  recentCount = await redis.incr(`reset_rate:${email}`)
+  if recentCount === 1 → await redis.expire(`reset_rate:${email}`, 3600)
+  if recentCount > 3 → return  // silent rate limit
+
+  token = crypto.randomBytes(32).toString('hex')
+  await redis.set(`reset:${token}`, user.id, { ex: 3600 })  // TTL 1h
+  await sendEmail(user.email, 'password_reset', { resetLink: `${APP_URL}/reset-password?token=${token}` })
+}
+
+// POST /api/auth/reset-password
+async function resetPassword(token: string, newPassword: string): Promise<void> {
+  userId = await redis.get(`reset:${token}`)
+  if !userId → throw BadRequestError('token_expired_or_used')
+
+  if newPassword.length < 8 → throw BadRequestError('password_too_short')
+
+  hash = await bcrypt.hash(newPassword, 12)
+  await db.users.update(userId, { passwordHash: hash })
+  await redis.del(`reset:${token}`)  // single-use
 }
 ```
 
@@ -309,15 +352,11 @@ function getDailyVolume(daysInWarmup: number): number {
 
 // Warmup Send Worker (processes WarmupSendJob)
 async function processWarmupSend(job: WarmupSendJob): Promise<void> {
-  // 1. Decrypt sender credentials
-  senderCreds = await decryptAES256GCM(
-    (await db.emailAccounts.findById(job.accountId)).credentialsEnc,
-    ENCRYPTION_KEY
-  )
-  partnerCreds = await decryptAES256GCM(
-    (await db.emailAccounts.findById(job.partnerId)).credentialsEnc,
-    ENCRYPTION_KEY
-  )
+  // 1. Load accounts + decrypt credentials
+  senderAccount  = await db.emailAccounts.findById(job.accountId)
+  partnerAccount = await db.emailAccounts.findById(job.partnerId)
+  senderCreds    = await decryptAES256GCM(senderAccount.credentialsEnc, ENCRYPTION_KEY)
+  partnerCreds   = await decryptAES256GCM(partnerAccount.credentialsEnc, ENCRYPTION_KEY)
 
   // 2. Send warmup email (sender → partner)
   subject  = pickRandom(WARMUP_SUBJECTS)    // pool of 20+ templates
@@ -979,14 +1018,22 @@ async function processRecurringBilling(): Promise<void> {
       await db.subscriptions.update(sub.id, { renewalAttemptAt: now() })
 
     } catch (err) {
-      // After 3 failed attempts → downgrade to trial
-      sub.renewalAttempts = (sub.renewalAttempts ?? 0) + 1
-      if sub.renewalAttempts >= 3 {
-        await db.subscriptions.update(sub.id, { status: 'past_due' })
-        await db.users.update(sub.userId, { plan: 'trial' })
+      // Always persist attempt count BEFORE branching
+      newAttempts = (sub.renewalAttempts ?? 0) + 1
+      if newAttempts >= 3 {
+        // 3 failures → mark past_due and downgrade user plan
+        await db.subscriptions.update(sub.id, {
+          status: 'past_due',
+          renewalAttempts: newAttempts,
+          renewalAttemptAt: now(),
+        })
+        await db.users.update(sub.userId, { plan: 'free' })
         await sendEmail(sub.userId, 'billing_failed')
       } else {
-        await db.subscriptions.update(sub.id, { renewalAttempts: sub.renewalAttempts })
+        await db.subscriptions.update(sub.id, {
+          renewalAttempts: newAttempts,
+          renewalAttemptAt: now(),
+        })
       }
     }
   }
@@ -1003,7 +1050,9 @@ async function cancelSubscription(userId: string): Promise<{ accessUntil: string
   })
 
   // Access continues until end of paid period
-  // plan downgrade happens in processRecurringBilling after period ends
+  // Schedule a job to downgrade user.plan at currentPeriodEnd
+  await downgradePlanQueue.add({ userId, newPlan: 'free' }, { delay: sub.currentPeriodEnd - now() })
+
   return { accessUntil: sub.currentPeriodEnd.toISOString() }
 }
 

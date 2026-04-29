@@ -501,11 +501,12 @@ services:
     environment:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD}
       GF_SERVER_ROOT_URL: ${APP_URL}/grafana
+      GF_SERVER_HTTP_PORT: "3002"
     volumes:
       - grafana_data:/var/lib/grafana
       - ./monitoring/grafana/dashboards:/etc/grafana/dashboards:ro
     expose:
-      - "3000"
+      - "3002"
     depends_on:
       - prometheus
     restart: unless-stopped
@@ -827,12 +828,16 @@ CREATE TRIGGER campaigns_updated_at BEFORE UPDATE ON campaigns
 
 ### Authentication Flow
 
+**Token TTLs:** Access token 15 min | Refresh token 7 days
+**Password hashing:** bcrypt cost factor **12** (hardened against brute-force; minimum acceptable)
+
 ```
 Browser                    Nginx                 Fastify API              Redis
   │                          │                       │                      │
   │──POST /api/auth/login────►│──────────────────────►│                      │
-  │                          │                       │──bcrypt.compare()    │
-  │                          │                       │──issueTokenPair()    │
+  │                          │                       │──bcrypt.compare()    │  // cost=12
+  │                          │                       │──issueTokenPair()    │  // access 15m, refresh 7d
+  │                          │                       │──SET refresh:uid:tok─►│
   │                          │                       │──SET refresh:uid:tok─►│
   │◄─200 {access,refresh}────│◄──────────────────────│                      │
   │                          │                       │                      │
