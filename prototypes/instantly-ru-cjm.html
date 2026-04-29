@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Поток · CJM Prototype · Instantly.ai RU-Analog</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif; }
+    .fade-in { animation: fadeIn 0.25s ease-out; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    .slide-in { animation: slideIn 0.3s ease-out; }
+    @keyframes slideIn { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: translateX(0); } }
+    .pulse-dot { animation: pulseDot 2s infinite; }
+    @keyframes pulseDot { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
+    .screen-card { transition: all 0.2s ease; }
+    .screen-card:hover { transform: translateY(-2px); }
+    ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-track { background:#f1f5f9; } ::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:3px; }
+  </style>
+</head>
+<body class="bg-slate-100 min-h-screen">
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useCallback } = React;
+
+// ═══════════════════════════════════════════════════════
+// VARIANT DATA — generated from M2 analysis for RU market
+// Product working title: «Поток» (Outreach SaaS for Russia)
+// ═══════════════════════════════════════════════════════
+
+const VARIANTS = {
+  A: {
+    name: "Доставляемость", emoji: "📬",
+    c: { bg:"#1d4ed8", light:"#eff6ff", border:"#3b82f6", text:"#1e40af",
+         badgeBg:"#dbeafe", badgeTxt:"#1e3a8a", grad:"from-blue-600 to-indigo-700" },
+    landing: {
+      hl: "Холодные письма в Яндекс — не в спам",
+      sub: "Первый и единственный сервис в России с прогревом для Яндекс.Почты, Mail.ru и корпоративных доменов. Unlimited аккаунты. Плоская цена.",
+      cta: "Попробовать бесплатно 7 дней",
+      hero_stat: "Inbox Rate: 89%",
+      hero_sub: "У конкурентов — 52% при рассылке на Яндекс",
+      badge: "Прогрев Яндекс + Mail.ru",
+    },
+    onboarding: {
+      q1: "Какой почтовый провайдер использует ваша аудитория?",
+      q1_opts: ["📧 Яндекс.Почта (большинство)", "📨 Mail.ru / Inbox", "🌐 Корпоративный домен", "📮 Google Workspace"],
+      q2: "Сколько писем планируете отправлять в день?",
+      q2_opts: ["до 100 (тест)", "100–500 (малый бизнес)", "500–2000 (активный outreach)", "2000+ (агентство)"],
+      q3: "Есть ли уже настроенный домен для рассылок?",
+      q3_opts: ["Да, есть настроенный", "Есть домен, нужна помощь с настройкой", "Нет, нужно создать"],
+      style: "Технический — с пояснениями по каждому шагу",
+    },
+    aha: {
+      title: "✅ Ваше письмо попало во входящие Яндекс",
+      desc: "Только что тестовое письмо с вашего домена доставлено во входящие папку Яндекс.Почты. Inbox Score: 89%. Прогрев запущен на 30 аккаунтах автоматически.",
+      wow: "Это работает — за 8 минут без сложных DNS-настроек",
+      kpi: "Inbox Score 89%  •  Прогрев: 30 аккаунтов  •  Спам: 0%",
+      day: "Первые 10 минут после регистрации",
+      screen_detail: {
+        items: [
+          { label: "Яндекс.Почта", value: "89% inbox", ok: true },
+          { label: "Mail.ru", value: "76% inbox", ok: true },
+          { label: "Gmail", value: "94% inbox", ok: true },
+          { label: "Корп. домен", value: "В процессе прогрева...", ok: null },
+        ]
+      }
+    },
+    dash: {
+      hook: "Ежедневный Inbox Score (обновляется каждый час)",
+      lesson: "📬 Сегодня можно отправлять — Score 89% по всем провайдерам",
+      stats: ["Inbox Score: 89% 🟢", "Аккаунтов: 12 активных", "Прогрев: день 7/21"],
+      extra: "📊 За вчера: 340 писем → 8 ответов → 2 звонка запланированы",
+      campaigns: ["Кампания #1: 124 контакта → 6 ответов", "Кампания #2: прогревается..."],
+    },
+    pay: {
+      when: "Сразу после первого Aha (inbox-попадание)",
+      frame: "Вы только что убедились — прогрев работает для Яндекс. Разблокируйте полный доступ: неограниченные аккаунты, AI-персонализация, CRM-интеграция.",
+      price: "₽1 990/мес Старт  ·  ₽4 990/мес Про  ·  ₽9 990/мес Агентство",
+      cta: "Разблокировать полный доступ",
+      guarantee: "30 дней — возврат без вопросов",
+    },
+    inv: {
+      hook: "Пригласите коллегу — получите +500 прогревов/мес бесплатно",
+      mech: "Каждый приглашённый = +1 месяц бесплатного прогрева для вашего аккаунта. Без ограничений.",
+      copy: "«Наконец-то сервис, который прогревает Яндекс! Попробуй Поток »",
+    },
+  },
+
+  B: {
+    name: "Масштаб", emoji: "📈",
+    c: { bg:"#047857", light:"#ecfdf5", border:"#10b981", text:"#065f46",
+         badgeBg:"#d1fae5", badgeTxt:"#064e3b", grad:"from-emerald-600 to-teal-700" },
+    landing: {
+      hl: "Ведите outreach для 10 клиентов из одного кабинета",
+      sub: "Агентский режим без per-seat оплаты. Каждый клиент — изолированный workspace с собственными кампаниями, отчётами и доменами.",
+      cta: "Начать бесплатно",
+      hero_stat: "10 клиентов",
+      hero_sub: "Один кабинет · Один тариф · Ноль доплат за место",
+      badge: "Агентский режим",
+    },
+    onboarding: {
+      q1: "Вы ведёте outreach для клиентов или для своего бизнеса?",
+      q1_opts: ["🏢 Для своего бизнеса", "🤝 Для 1–3 клиентов", "📊 Для 4–10 клиентов", "🚀 Для 10+ клиентов (агентство)"],
+      q2: "Какой CRM используете сейчас?",
+      q2_opts: ["AmoCRM", "Bitrix24", "HubSpot", "Нет CRM / Google Sheets"],
+      q3: "Что самое болезненное в текущем процессе?",
+      q3_opts: ["Переключение между клиентами", "Отчётность для клиентов", "Настройка доменов для каждого", "Нет данных о доставляемости"],
+      style: "Быстрый старт — 3 вопроса, потом сразу dashboard",
+    },
+    aha: {
+      title: "📊 Все 3 клиента — одним взглядом",
+      desc: "Клиент А: 18 ответов за неделю. Клиент Б: кампания запущена, 340 писем отправлено. Клиент В: нужна настройка домена. Всё в одном экране.",
+      wow: "Наконец-то не нужно переключаться между 10 вкладками",
+      kpi: "3 клиента  •  18 ответов  •  340 писем  •  2 сделки в работе",
+      day: "Конец первой недели работы",
+      screen_detail: {
+        items: [
+          { label: "Клиент А: Финтех SaaS", value: "18 ответов 🟢", ok: true },
+          { label: "Клиент Б: B2B услуги", value: "340 отправлено 🟡", ok: null },
+          { label: "Клиент В: ИТ-аутсорс", value: "Настройка домена ⚙️", ok: null },
+        ]
+      }
+    },
+    dash: {
+      hook: "Multi-client dashboard — все кампании в реальном времени",
+      lesson: "📈 Клиент А обогнал план: 18 ответов vs цель 10 за неделю",
+      stats: ["Клиентов: 3 активных", "Писем за неделю: 1240", "Ответов: 27 (2.2%)"],
+      extra: "💡 Следующий шаг: добавить домен для Клиента В",
+      campaigns: ["Клиент А — Финтех: 18 ответов / 340 писем", "Клиент Б — B2B: 9 ответов / 490 писем"],
+    },
+    pay: {
+      when: "После 7 дней (первые реальные ответы)",
+      frame: "За неделю вы получили 27 ответов для 3 клиентов. Обновитесь до Агентского тарифа — до 50 клиентских workspace, белые отчёты, приоритетная поддержка.",
+      price: "₽4 990/мес до 10 клиентов  ·  ₽9 990/мес до 50 клиентов",
+      cta: "Перейти на Агентский",
+      guarantee: "Если за месяц нет ROI — вернём деньги",
+    },
+    inv: {
+      hook: "Реферальная программа для агентств: 20% с каждого приведённого клиента",
+      mech: "Ваш реферальный код даёт скидку 20% новому клиенту + вы получаете 20% от его оплаты ежемесячно.",
+      copy: "«Перевёл 8 клиентов на Поток — теперь вожу их из одного места»",
+    },
+  },
+
+  C: {
+    name: "Автопилот", emoji: "🤖",
+    c: { bg:"#6d28d9", light:"#f5f3ff", border:"#8b5cf6", text:"#5b21b6",
+         badgeBg:"#ede9fe", badgeTxt:"#4c1d95", grad:"from-violet-600 to-purple-700" },
+    landing: {
+      hl: "AI написал 200 персонализированных писем. Вы не трогали ничего.",
+      sub: "Расскажите о своём бизнесе — AI изучит сайты ваших потенциальных клиентов, напишет уникальные письма и отправит их. Вы видите только ответы.",
+      cta: "Запустить AI-аутрич",
+      hero_stat: "200 писем/день",
+      hero_sub: "Каждое персонализировано под конкретного получателя",
+      badge: "AI-автопилот",
+    },
+    onboarding: {
+      q1: "Расскажите о своём продукте или услуге",
+      q1_opts: ["SaaS / программное обеспечение", "B2B услуги (консалтинг, аутсорс)", "Агентство (маркетинг, дизайн, разработка)", "Другое B2B"],
+      q2: "Кто ваш идеальный клиент?",
+      q2_opts: ["Стартапы до 50 чел", "МСБ 50–500 чел", "Крупный бизнес 500+", "Конкретная отрасль (укажите)"],
+      q3: "Что AI должен предложить в первом письме?",
+      q3_opts: ["Демо-встреча 20 мин", "Бесплатный аудит", "Тестовый проект", "Пусть AI решит сам"],
+      style: "Wizard — AI подхватывает каждый ответ и адаптирует следующий вопрос",
+    },
+    aha: {
+      title: "🤖 AI написал 12 персонализированных писем для вас",
+      desc: "Пока вы заполняли анкету, AI изучил 12 сайтов из вашего списка и написал уникальные письма. Каждое упоминает конкретный факт о компании получателя.",
+      wow: "Письмо для Рога и Копыта Лтд: «Заметил, что вы недавно запустили новый лендинг — готов показать как увеличить лиды с него на 30%»",
+      kpi: "12 писем готово  •  Среднее время на письмо: 4 сек  •  Персонализация: 94%",
+      day: "Через 3 минуты после заполнения анкеты",
+      screen_detail: {
+        items: [
+          { label: "Рога и Копыта Лтд", value: "Написано ✍️", ok: true },
+          { label: "ТехноСервис ООО", value: "Написано ✍️", ok: true },
+          { label: "Альфа Медиа", value: "Пишет... 🤖", ok: null },
+          { label: "БизнесПлюс", value: "В очереди", ok: null },
+        ]
+      }
+    },
+    dash: {
+      hook: "AI Reply Agent — отвечает на входящие за <5 мин",
+      lesson: "🤖 AI ответил на 3 письма пока вы спали. 1 встреча запланирована.",
+      stats: ["AI написал сегодня: 47 писем", "Ответов получено: 4 (8.5%)", "Встреч запланировано: 1"],
+      extra: "⚡ Следующий шаг: проверьте ответы и одобрите/отклоните решения AI",
+      campaigns: ["Автокампания #1: 47 отправлено → 4 ответа", "AI Reply: 3 диалога активно"],
+    },
+    pay: {
+      when: "После первого AI-черновика (proof of value)",
+      frame: "AI уже написал ваши первые письма — без единой строчки текста с вашей стороны. Разблокируйте автопилот: AI-агент отвечает на входящие, бронирует встречи, обновляет CRM.",
+      price: "₽2 990/мес Старт  ·  ₽5 990/мес Автопилот  ·  ₽11 990/мес Максимум",
+      cta: "Включить полный автопилот",
+      guarantee: "Первая встреча с клиентом или возврат денег",
+    },
+    inv: {
+      hook: "Поделитесь шаблоном → community улучшит его AI",
+      mech: "Загрузите рабочий шаблон письма в библиотеку. AI обучится на ваших результатах. Вы получаете credits — 50 бесплатных AI-писем за каждый шаблон.",
+      copy: "«AI написал 200 писем за ночь. Утром — 12 ответов. Это Поток»",
+    },
+  },
+};
+
+// ═══════════════════════════════════════════════════════
+// CJM METADATA — stages and AARRR framework (standard)
+// ═══════════════════════════════════════════════════════
+const CJM_META = {
+  landing:    { stage: "Awareness",    aarrr: "Acquisition", icon: "🌐", q: "Что заставляет кликнуть? Какое обещание?", color: "bg-sky-100 text-sky-800" },
+  onboarding: { stage: "Activation",  aarrr: "Activation",  icon: "⚙️", q: "Как быстро пользователь видит первую ценность?", color: "bg-amber-100 text-amber-800" },
+  aha:        { stage: "Aha Moment",   aarrr: "Activation",  icon: "⚡", q: "Какой момент вызывает «вау»? Насколько он быстрый?", color: "bg-green-100 text-green-800" },
+  dash:       { stage: "Engagement",   aarrr: "Retention",   icon: "📊", q: "Что возвращает пользователя каждый день?", color: "bg-violet-100 text-violet-800" },
+  pay:        { stage: "Monetization", aarrr: "Revenue",     icon: "💳", q: "Когда и почему пользователь платит? Что разблокирует?", color: "bg-rose-100 text-rose-800" },
+  inv:        { stage: "Referral",     aarrr: "Referral",    icon: "🔗", q: "Какова механика приглашения? Что мотивирует делиться?", color: "bg-teal-100 text-teal-800" },
+};
+
+const SCREENS = ["landing","onboarding","aha","dash","pay","inv"];
+const SCREEN_LABELS = { landing:"Лендинг", onboarding:"Онбординг", aha:"Aha Момент", dash:"Dashboard", pay:"Paywall", inv:"Инвайт" };
+const VAR_KEYS = ["A","B","C"];
+
+// ═══════════════════════════════════════════════════════
+// SCREEN RENDERERS
+// ═══════════════════════════════════════════════════════
+
+function LandingScreen({ v, showCjm }) {
+  const d = v.landing; const c = v.c;
+  return (
+    <div className="fade-in flex flex-col h-full">
+      <div className={`bg-gradient-to-br ${c.grad} p-5 rounded-xl text-white mb-4`}>
+        <div className={`inline-block text-xs font-semibold px-2 py-1 rounded-full mb-3`}
+             style={{background:"rgba(255,255,255,0.2)"}}>
+          {v.emoji} {d.badge}
+        </div>
+        <h2 className="text-xl font-bold leading-snug mb-2">{d.hl}</h2>
+        <p className="text-sm opacity-90 mb-4 leading-relaxed">{d.sub}</p>
+        <button className="bg-white text-sm font-semibold px-4 py-2 rounded-lg w-full"
+                style={{color: c.bg}}>{d.cta}</button>
+      </div>
+      <div className="bg-white rounded-xl p-4 border border-slate-100 flex items-center gap-4">
+        <div className="text-3xl font-black" style={{color:c.bg}}>{d.hero_stat}</div>
+        <div className="text-xs text-slate-500 leading-snug">{d.hero_sub}</div>
+      </div>
+      {showCjm && <CjmBadge stage="landing" />}
+    </div>
+  );
+}
+
+function OnboardingScreen({ v, showCjm }) {
+  const d = v.onboarding; const c = v.c;
+  const [step, setStep] = useState(0);
+  const [answers, setAnswers] = useState({});
+  const qs = [
+    {q: d.q1, opts: d.q1_opts},
+    {q: d.q2, opts: d.q2_opts},
+    {q: d.q3, opts: d.q3_opts},
+  ];
+  const cur = qs[step];
+  return (
+    <div className="fade-in flex flex-col h-full">
+      <div className="flex items-center gap-2 mb-4">
+        {qs.map((_,i) => (
+          <div key={i} className={`h-1.5 flex-1 rounded-full transition-all ${i<=step ? '' : 'bg-slate-200'}`}
+               style={{background: i<=step ? c.bg : undefined}} />
+        ))}
+      </div>
+      <div className="text-xs text-slate-400 mb-1">Вопрос {step+1} из {qs.length}</div>
+      <p className="font-semibold text-slate-800 text-sm mb-3 leading-snug">{cur.q}</p>
+      <div className="space-y-2 flex-1">
+        {cur.opts.map((opt,i) => (
+          <button key={i}
+            onClick={() => { setAnswers({...answers, [step]:i}); if(step<qs.length-1) setStep(step+1); }}
+            className={`w-full text-left text-sm px-3 py-2.5 rounded-lg border transition-all ${answers[step]===i ? 'border-2 font-medium' : 'border-slate-200 bg-white hover:border-slate-300'}`}
+            style={answers[step]===i ? {borderColor:c.bg, background:c.light, color:c.text} : {}}>
+            {opt}
+          </button>
+        ))}
+      </div>
+      <div className="mt-3 text-xs text-slate-400 italic">{d.style}</div>
+      {showCjm && <CjmBadge stage="onboarding" />}
+    </div>
+  );
+}
+
+function AhaScreen({ v, showCjm }) {
+  const d = v.aha; const c = v.c;
+  return (
+    <div className="fade-in flex flex-col h-full">
+      <div className={`rounded-xl p-4 mb-3`} style={{background:c.light, border:`1.5px solid ${c.border}`}}>
+        <div className="text-lg font-bold mb-1" style={{color:c.bg}}>{d.title}</div>
+        <p className="text-xs text-slate-600 leading-relaxed mb-3">{d.desc}</p>
+        <div className="bg-white rounded-lg p-3 border border-slate-100">
+          <div className="text-xs font-semibold text-slate-500 mb-2">Результаты теста:</div>
+          <div className="space-y-1.5">
+            {d.screen_detail.items.map((item,i) => (
+              <div key={i} className="flex items-center justify-between text-xs">
+                <span className="text-slate-600">{item.label}</span>
+                <span className={`font-semibold ${item.ok === true ? '' : item.ok === null ? 'text-amber-600' : 'text-red-500'}`}
+                      style={item.ok === true ? {color:c.bg} : {}}>
+                  {item.value}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+      <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-800 font-medium mb-3">
+        ⚡ {d.wow}
+      </div>
+      <div className="text-xs text-slate-500 bg-white rounded-lg px-3 py-2 border border-slate-100">
+        {d.kpi}
+      </div>
+      <div className="mt-2 text-xs text-slate-400">{d.day}</div>
+      {showCjm && <CjmBadge stage="aha" />}
+    </div>
+  );
+}
+
+function DashScreen({ v, showCjm }) {
+  const d = v.dash; const c = v.c;
+  return (
+    <div className="fade-in flex flex-col h-full">
+      <div className="flex items-center gap-2 mb-3">
+        <div className="h-2 w-2 rounded-full pulse-dot" style={{background:c.bg}} />
+        <span className="text-xs text-slate-500 font-medium">{d.hook}</span>
+      </div>
+      <div className={`rounded-xl p-4 mb-3`} style={{background:c.light, border:`1.5px solid ${c.border}`}}>
+        <div className="text-xs font-bold mb-3" style={{color:c.bg}}>{d.lesson}</div>
+        <div className="grid grid-cols-3 gap-2">
+          {d.stats.map((s,i) => (
+            <div key={i} className="bg-white rounded-lg p-2 text-center">
+              <div className="text-xs text-slate-600 leading-snug">{s}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="space-y-1.5 flex-1">
+        {d.campaigns.map((c2,i) => (
+          <div key={i} className="bg-white rounded-lg px-3 py-2 text-xs border border-slate-100 text-slate-600">{c2}</div>
+        ))}
+      </div>
+      <div className="mt-3 bg-slate-50 rounded-lg px-3 py-2 text-xs text-slate-500">{d.extra}</div>
+      {showCjm && <CjmBadge stage="dash" />}
+    </div>
+  );
+}
+
+function PayScreen({ v, showCjm }) {
+  const d = v.pay; const c = v.c;
+  return (
+    <div className="fade-in flex flex-col h-full">
+      <div className={`rounded-xl p-4 mb-3 bg-gradient-to-br ${c.grad} text-white`}>
+        <div className="text-xs font-medium opacity-80 mb-2">🔓 Разблокируйте полный доступ</div>
+        <p className="text-sm font-medium leading-snug mb-3">{d.frame}</p>
+        <button className="w-full bg-white text-sm font-bold py-2.5 rounded-lg"
+                style={{color:c.bg}}>{d.cta}</button>
+      </div>
+      <div className="space-y-2 text-xs text-slate-600 bg-white rounded-xl p-3 border border-slate-100">
+        {d.price.split("  ·  ").map((p,i) => (
+          <div key={i} className={`flex items-center gap-2 p-2 rounded-lg ${i===1 ? 'font-semibold' : ''}`}
+               style={i===1 ? {background:c.light, color:c.text} : {}}>
+            {i===1 && <span className="text-xs px-1.5 py-0.5 rounded-full text-white" style={{background:c.bg}}>Popular</span>}
+            {p}
+          </div>
+        ))}
+      </div>
+      <div className="mt-3 text-xs text-center text-slate-400">🛡️ {d.guarantee}</div>
+      <div className="mt-2 text-xs text-slate-400 bg-slate-50 rounded-lg px-3 py-1.5">
+        ⏱ Paywall показывается: {d.when}
+      </div>
+      {showCjm && <CjmBadge stage="pay" />}
+    </div>
+  );
+}
+
+function InvScreen({ v, showCjm }) {
+  const d = v.inv; const c = v.c;
+  return (
+    <div className="fade-in flex flex-col h-full">
+      <div className={`rounded-xl p-4 mb-3`} style={{background:c.light, border:`1.5px solid ${c.border}`}}>
+        <div className="text-sm font-bold mb-2" style={{color:c.bg}}>{d.hook}</div>
+        <p className="text-xs text-slate-600 leading-relaxed mb-4">{d.mech}</p>
+        <div className="bg-white rounded-lg p-3 border border-slate-100">
+          <div className="text-xs text-slate-500 mb-1">Поделиться:</div>
+          <div className="flex gap-2">
+            {["Telegram","VK","Email"].map(s => (
+              <button key={s} className="text-xs font-medium px-3 py-1.5 rounded-lg text-white"
+                      style={{background:c.bg}}>{s}</button>
+            ))}
+          </div>
+        </div>
+      </div>
+      <div className="bg-slate-800 rounded-xl p-3">
+        <div className="text-xs text-slate-400 mb-1">Шаблон сообщения:</div>
+        <div className="text-xs text-white italic leading-relaxed">"{d.copy}"</div>
+      </div>
+      {showCjm && <CjmBadge stage="inv" />}
+    </div>
+  );
+}
+
+const SCREEN_COMPONENTS = { landing:LandingScreen, onboarding:OnboardingScreen, aha:AhaScreen, dash:DashScreen, pay:PayScreen, inv:InvScreen };
+
+// ═══════════════════════════════════════════════════════
+// CJM BADGE OVERLAY
+// ═══════════════════════════════════════════════════════
+
+function CjmBadge({ stage }) {
+  const m = CJM_META[stage];
+  return (
+    <div className="mt-3 rounded-lg p-2.5 border border-dashed border-slate-300 bg-slate-50">
+      <div className="flex items-center gap-2 mb-1">
+        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${m.color}`}>{m.stage}</span>
+        <span className="text-xs text-slate-400">AARRR: {m.aarrr}</span>
+      </div>
+      <div className="text-xs text-slate-500">❓ {m.q}</div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════
+// COMPARISON TABLE
+// ═══════════════════════════════════════════════════════
+
+function CompareTable() {
+  const rows = [
+    { label: "Aha Moment",     key: "aha",   get: v => v.aha.title.replace("✅ ","").replace("📊 ","").replace("🤖 ","") },
+    { label: "Entry Hook",     key: "land",  get: v => v.landing.hl },
+    { label: "Целевой сегмент",key: "seg",   get: v => ({A:"SDR / Основатель",B:"Агентство",C:"B2B SaaS маркетолог"}[VAR_KEYS[VAR_KEYS.indexOf(Object.keys(VARIANTS).find(k => VARIANTS[k]===v))]]) },
+    { label: "Paywall timing", key: "pay",   get: v => v.pay.when },
+    { label: "Core Loop",      key: "dash",  get: v => v.dash.hook },
+    { label: "Referral Hook",  key: "inv",   get: v => v.inv.hook.split("→")[0].trim() },
+    { label: "Гипотеза",       key: "hyp",   get: (_,k) => ({A:"Deliverability = главная боль РФ",B:"Multi-client без per-seat",C:"AI снижает барьер входа"}[k]) },
+    { label: "Главный риск",   key: "risk",  get: (_,k) => ({A:"Сложный технический онбординг",B:"Без базы контактов нет смысла",C:"AI-письма воспринимаются как спам"}[k]) },
+  ];
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-xs border-collapse">
+        <thead>
+          <tr>
+            <th className="text-left p-2 bg-slate-100 text-slate-500 font-medium rounded-tl-lg w-28">Параметр</th>
+            {VAR_KEYS.map(k => (
+              <th key={k} className="p-2 text-center font-semibold"
+                  style={{background:VARIANTS[k].c.light, color:VARIANTS[k].c.text}}>
+                {VARIANTS[k].emoji} {k}: {VARIANTS[k].name}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row,i) => (
+            <tr key={i} className={i%2===0 ? "bg-white" : "bg-slate-50"}>
+              <td className="p-2 font-medium text-slate-600 border-b border-slate-100">{row.label}</td>
+              {VAR_KEYS.map(k => (
+                <td key={k} className="p-2 text-slate-600 border-b border-slate-100 leading-snug">
+                  {row.get(VARIANTS[k], k)}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════
+// BUILDER — mix & match screens from variants
+// ═══════════════════════════════════════════════════════
+
+function Builder({ onLock }) {
+  const [mix, setMix] = useState({landing:"A",onboarding:"A",aha:"A",dash:"A",pay:"A",inv:"A"});
+  const score = () => {
+    const counts = Object.values(mix).reduce((a,v)=>{a[v]=(a[v]||0)+1;return a;},{});
+    return Object.entries(counts).sort((a,b)=>b[1]-a[1]);
+  };
+  return (
+    <div className="space-y-3">
+      <div className="text-sm font-semibold text-slate-700 mb-4">🔧 Соберите свой CJM — выберите лучший экран из каждого варианта</div>
+      {SCREENS.map(screen => (
+        <div key={screen} className="bg-white rounded-xl p-3 border border-slate-100">
+          <div className="text-xs font-semibold text-slate-600 mb-2">
+            {CJM_META[screen].icon} {SCREEN_LABELS[screen]}
+            <span className="ml-2 font-normal text-slate-400">({CJM_META[screen].aarrr})</span>
+          </div>
+          <div className="flex gap-2">
+            {VAR_KEYS.map(k => (
+              <button key={k}
+                onClick={() => setMix({...mix, [screen]:k})}
+                className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all border-2 ${mix[screen]===k ? 'border-transparent text-white shadow-sm' : 'bg-white border-slate-200 text-slate-500'}`}
+                style={mix[screen]===k ? {background:VARIANTS[k].c.bg, borderColor:VARIANTS[k].c.bg} : {}}>
+                {k}: {VARIANTS[k].name}
+              </button>
+            ))}
+          </div>
+          <div className="mt-1.5 text-xs text-slate-400 italic leading-snug">
+            {screen==="landing" && VARIANTS[mix[screen]].landing.hl}
+            {screen==="aha" && VARIANTS[mix[screen]].aha.title}
+            {screen==="pay" && VARIANTS[mix[screen]].pay.when}
+          </div>
+        </div>
+      ))}
+      <div className="bg-slate-50 rounded-xl p-3 border border-slate-200">
+        <div className="text-xs font-semibold text-slate-600 mb-2">🏆 Доминирующий вариант в вашем миксе:</div>
+        <div className="flex gap-2">
+          {score().map(([k,n]) => (
+            <div key={k} className="flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-lg"
+                 style={{background:VARIANTS[k].c.light, color:VARIANTS[k].c.text}}>
+              {VARIANTS[k].emoji} {k} ({n} экрана{n>1?'':''})
+            </div>
+          ))}
+        </div>
+      </div>
+      <button onClick={()=>onLock({type:"custom",mix})}
+        className="w-full py-2.5 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-slate-700 to-slate-900">
+        ✅ Зафиксировать кастомный CJM
+      </button>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════
+// LOCKED RESULT
+// ═══════════════════════════════════════════════════════
+
+function LockedResult({ locked }) {
+  const isCustom = locked.type === "custom";
+  const vk = locked.variantKey;
+  const v = vk ? VARIANTS[vk] : null;
+  return (
+    <div className="fade-in">
+      <div className="bg-green-50 border-2 border-green-400 rounded-2xl p-5 mb-4">
+        <div className="text-lg font-bold text-green-800 mb-1">✅ CJM зафиксирован!</div>
+        <div className="text-sm text-green-700">
+          {isCustom ? "Кастомный микс" : `Вариант ${vk}: ${v.name}`} передаётся в Phase 1 (SPARC документацию)
+        </div>
+      </div>
+      <div className="bg-white rounded-xl p-4 border border-slate-100 space-y-3">
+        <div className="text-xs font-bold text-slate-500 uppercase tracking-wide">Контекст для SPARC Planning →</div>
+        {isCustom ? (
+          Object.entries(locked.mix).map(([s,k]) => (
+            <div key={s} className="flex items-center gap-2 text-xs">
+              <span className="w-24 text-slate-400">{SCREEN_LABELS[s]}</span>
+              <span className="font-semibold px-2 py-0.5 rounded-full"
+                    style={{background:VARIANTS[k].c.light, color:VARIANTS[k].c.text}}>
+                {VARIANTS[k].emoji} {k}: {VARIANTS[k].name}
+              </span>
+            </div>
+          ))
+        ) : (
+          <div className="space-y-2 text-xs text-slate-600">
+            <div><strong>Aha Moment:</strong> {v.aha.wow}</div>
+            <div><strong>Entry:</strong> {v.landing.hl}</div>
+            <div><strong>Paywall:</strong> {v.pay.when}</div>
+            <div><strong>Growth Loop:</strong> {v.dash.hook}</div>
+          </div>
+        )}
+      </div>
+      <div className="mt-4 bg-blue-50 rounded-xl p-3 border border-blue-100">
+        <div className="text-xs font-semibold text-blue-700 mb-1">🚀 Следующий шаг</div>
+        <div className="text-xs text-blue-600">Введите "ок" для перехода в Phase 1: SPARC документация на основе этого CJM</div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════
+// MAIN APP
+// ═══════════════════════════════════════════════════════
+
+function App() {
+  const [activeVariant, setActiveVariant] = useState("A");
+  const [activeScreen, setActiveScreen] = useState("landing");
+  const [showCjm, setShowCjm] = useState(false);
+  const [activeTab, setActiveTab] = useState("explore"); // explore | compare | build | locked
+  const [locked, setLocked] = useState(null);
+
+  const v = VARIANTS[activeVariant];
+  const ScreenComp = SCREEN_COMPONENTS[activeScreen];
+
+  const handleLock = useCallback((result) => {
+    setLocked(result);
+    setActiveTab("locked");
+  }, []);
+
+  const lockVariant = useCallback((k) => {
+    handleLock({ type:"variant", variantKey:k });
+  }, [handleLock]);
+
+  return (
+    <div className="min-h-screen bg-slate-100 p-4">
+      {/* HEADER */}
+      <div className="max-w-5xl mx-auto mb-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-black text-slate-900">Поток · CJM Prototype</h1>
+            <p className="text-xs text-slate-500 mt-0.5">Instantly.ai аналог для рынка РФ · Module 2.5 · Режим DEEP</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowCjm(!showCjm)}
+              className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition-all ${showCjm ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'}`}>
+              📊 {showCjm ? "Скрыть" : "CJM Оверлей"}
+            </button>
+          </div>
+        </div>
+
+        {/* NAVIGATION TABS */}
+        <div className="flex gap-1 mt-4 bg-white rounded-xl p-1 border border-slate-200">
+          {[
+            {k:"explore", label:"📱 Исследовать"},
+            {k:"compare", label:"⚖️ Сравнить"},
+            {k:"build",   label:"🔧 Собрать свой"},
+            {k:"locked",  label:"✅ Результат", disabled: !locked},
+          ].map(tab => (
+            <button key={tab.k}
+              onClick={() => !tab.disabled && setActiveTab(tab.k)}
+              disabled={tab.disabled}
+              className={`flex-1 text-xs font-semibold py-2 rounded-lg transition-all ${activeTab===tab.k ? 'bg-slate-900 text-white' : tab.disabled ? 'text-slate-300 cursor-not-allowed' : 'text-slate-500 hover:bg-slate-50'}`}>
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="max-w-5xl mx-auto">
+        {/* EXPLORE MODE */}
+        {activeTab === "explore" && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* LEFT: Variant + Screen selectors */}
+            <div className="space-y-3">
+              {/* Variant tabs */}
+              <div className="bg-white rounded-xl p-3 border border-slate-200">
+                <div className="text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wide">Вариант</div>
+                <div className="space-y-1.5">
+                  {VAR_KEYS.map(k => (
+                    <button key={k}
+                      onClick={() => setActiveVariant(k)}
+                      className={`w-full text-left px-3 py-2.5 rounded-lg text-sm font-semibold border-2 transition-all ${activeVariant===k ? 'text-white border-transparent shadow-sm' : 'bg-white border-slate-100 text-slate-600 hover:border-slate-200'}`}
+                      style={activeVariant===k ? {background:VARIANTS[k].c.bg, borderColor:VARIANTS[k].c.bg} : {}}>
+                      <span className="mr-2">{VARIANTS[k].emoji}</span>
+                      {k}: {VARIANTS[k].name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Screen selector */}
+              <div className="bg-white rounded-xl p-3 border border-slate-200">
+                <div className="text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wide">Экран</div>
+                <div className="space-y-1">
+                  {SCREENS.map(s => {
+                    const m = CJM_META[s];
+                    return (
+                      <button key={s}
+                        onClick={() => setActiveScreen(s)}
+                        className={`w-full text-left px-3 py-2 rounded-lg text-xs transition-all flex items-center gap-2 ${activeScreen===s ? 'font-semibold' : 'text-slate-500 hover:bg-slate-50'}`}
+                        style={activeScreen===s ? {background:v.c.light, color:v.c.text} : {}}>
+                        <span>{m.icon}</span>
+                        <span>{SCREEN_LABELS[s]}</span>
+                        <span className={`ml-auto text-xs px-1.5 py-0.5 rounded-full ${m.color}`}>{m.aarrr}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Lock button */}
+              <button onClick={() => lockVariant(activeVariant)}
+                className="w-full py-2.5 rounded-xl text-sm font-bold text-white shadow-sm transition-all hover:opacity-90"
+                style={{background:v.c.bg}}>
+                ✅ Выбрать вариант {activeVariant}
+              </button>
+            </div>
+
+            {/* CENTER: Phone mockup */}
+            <div className="flex flex-col items-center">
+              <div className="text-xs text-slate-400 mb-2 font-medium">{v.emoji} Вариант {activeVariant}: {v.name}</div>
+              <div className="bg-slate-900 rounded-3xl p-3 shadow-2xl w-full max-w-[280px]">
+                <div className="bg-white rounded-2xl overflow-hidden">
+                  {/* Status bar */}
+                  <div className="flex items-center justify-between px-4 py-2 bg-white border-b border-slate-50">
+                    <span className="text-xs text-slate-400">9:41</span>
+                    <div className="flex items-center gap-1">
+                      <div className="w-4 h-1.5 bg-slate-300 rounded-sm" />
+                      <div className="w-3 h-3 rounded-full border border-slate-300" />
+                    </div>
+                  </div>
+                  {/* Screen content */}
+                  <div className="p-3 min-h-[480px]">
+                    <ScreenComp v={v} showCjm={showCjm} />
+                  </div>
+                </div>
+              </div>
+              <div className="mt-3 flex gap-1">
+                {SCREENS.map(s => (
+                  <button key={s}
+                    onClick={() => setActiveScreen(s)}
+                    className="w-2 h-2 rounded-full transition-all"
+                    style={{background: activeScreen===s ? v.c.bg : '#e2e8f0'}} />
+                ))}
+              </div>
+            </div>
+
+            {/* RIGHT: Context panel */}
+            <div className="space-y-3">
+              {/* CJM stage info */}
+              <div className="bg-white rounded-xl p-3 border border-slate-200">
+                <div className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2 py-1 rounded-full mb-2 ${CJM_META[activeScreen].color}`}>
+                  {CJM_META[activeScreen].icon} {CJM_META[activeScreen].stage}
+                </div>
+                <div className="text-xs text-slate-600 leading-relaxed mb-2">{CJM_META[activeScreen].q}</div>
+                <div className="text-xs text-slate-400">AARRR: <strong className="text-slate-600">{CJM_META[activeScreen].aarrr}</strong></div>
+              </div>
+
+              {/* Variant summary */}
+              <div className="bg-white rounded-xl p-3 border border-slate-200">
+                <div className="text-xs font-bold mb-2" style={{color:v.c.text}}>
+                  {v.emoji} Вариант {activeVariant} — сводка
+                </div>
+                <div className="space-y-1.5 text-xs text-slate-600">
+                  <div><span className="text-slate-400">Aha:</span> {v.aha.wow}</div>
+                  <div><span className="text-slate-400">Paywall:</span> {v.pay.when}</div>
+                  <div><span className="text-slate-400">Loop:</span> {v.dash.hook}</div>
+                </div>
+              </div>
+
+              {/* RU Market specifics */}
+              <div className="bg-amber-50 rounded-xl p-3 border border-amber-200">
+                <div className="text-xs font-bold text-amber-800 mb-2">🇷🇺 РФ-специфика</div>
+                <div className="space-y-1 text-xs text-amber-700">
+                  <div>• Прогрев Яндекс + Mail.ru (основная боль)</div>
+                  <div>• Оплата через ЮКасса / СБП / T-Pay</div>
+                  <div>• 38-ФЗ: персонал. письма разрешены</div>
+                  <div>• Поддержка на русском языке</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* COMPARE MODE */}
+        {activeTab === "compare" && (
+          <div className="bg-white rounded-2xl p-5 border border-slate-200">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-bold text-slate-800">⚖️ Сравнение вариантов</h2>
+              <div className="text-xs text-slate-400">Instantly.ai аналог · Рынок РФ</div>
+            </div>
+            <CompareTable />
+            <div className="mt-4 grid grid-cols-3 gap-3">
+              {VAR_KEYS.map(k => (
+                <button key={k}
+                  onClick={() => lockVariant(k)}
+                  className="py-2.5 rounded-xl text-sm font-bold text-white transition-all hover:opacity-90"
+                  style={{background:VARIANTS[k].c.bg}}>
+                  ✅ Выбрать {k}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* BUILD MODE */}
+        {activeTab === "build" && (
+          <div className="bg-white rounded-2xl p-5 border border-slate-200">
+            <Builder onLock={handleLock} />
+          </div>
+        )}
+
+        {/* LOCKED RESULT */}
+        {activeTab === "locked" && locked && (
+          <div className="bg-white rounded-2xl p-5 border border-slate-200">
+            <LockedResult locked={locked} />
+          </div>
+        )}
+      </div>
+
+      {/* FOOTER */}
+      <div className="max-w-5xl mx-auto mt-6 text-center text-xs text-slate-400">
+        Module 2.5 · reverse-engineering-unicorn · Поток (Instantly.ai RU) · CJM DEEP mode · 2026-04-29
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>
