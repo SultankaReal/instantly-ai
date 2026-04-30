@@ -51,6 +51,21 @@ export async function publicationRoutes(app: FastifyInstance): Promise<void> {
     },
   );
 
+  // GET /api/publications — auth required, list own publications
+  app.get(
+    '/api/publications',
+    { preHandler: [app.authenticate] },
+    async (request, reply) => {
+      const authorId = request.user.sub;
+      const pubs = await app.prisma.publication.findMany({
+        where: { author_id: authorId },
+        select: { id: true, name: true, slug: true, description: true, created_at: true },
+        orderBy: { created_at: 'asc' },
+      });
+      return reply.send({ success: true, publications: pubs });
+    },
+  );
+
   // POST /api/publications — auth required
   app.post(
     '/api/publications',
