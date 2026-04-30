@@ -60,7 +60,6 @@ export async function importRoutes(app: FastifyInstance): Promise<void> {
       }
 
       // Parse multipart: iterate parts to find file and fields
-      let filePart: AsyncIterableIterator<unknown> extends AsyncIterableIterator<infer T> ? T : never | null = null;
       let sendWelcome = false;
       const tempPath = join(tmpdir(), `inkflow-import-${randomUUID()}.zip`);
 
