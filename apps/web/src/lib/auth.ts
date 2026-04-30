@@ -107,6 +107,12 @@ export function isAuthenticated(): boolean {
 /** Alias for getStoredToken — used by auth layout redirect check. */
 export const getAccessToken = getStoredToken;
 
+/** Alias for getStoredRefreshToken — used by useAuth hook. */
+export const getRefreshToken = getStoredRefreshToken;
+
+/** Alias for clearAuth — clears all tokens. */
+export const clearTokens = clearAuth;
+
 /** Persist both access and refresh tokens in one call. */
 export function setTokens(accessToken: string, refreshToken: string): void {
   setStoredToken(accessToken);

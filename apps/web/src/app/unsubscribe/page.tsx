@@ -3,29 +3,32 @@
 import { useEffect, useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { api } from '@/lib/api'
+import { apiClient, ApiClientError } from '@/lib/api-client'
 
 type UnsubscribeState = 'loading' | 'success' | 'error' | 'invalid'
 
 function UnsubscribeContent(): React.JSX.Element {
   const searchParams = useSearchParams()
   const token = searchParams.get('token')
-  const [state, setState] = useState<UnsubscribeState>(token ? 'loading' : 'invalid')
+  const pubId = searchParams.get('pubId')
+  const isValid = token && pubId
+  const [state, setState] = useState<UnsubscribeState>(isValid ? 'loading' : 'invalid')
   const [errorMessage, setErrorMessage] = useState<string>('')
 
   useEffect(() => {
-    if (!token) {
+    if (!token || !pubId) {
       setState('invalid')
       return
     }
 
     const doUnsubscribe = async (): Promise<void> => {
       try {
-        await api.unsubscribe.confirm(token)
+        await apiClient.get(
+          `/api/subscribers/unsubscribe?token=${encodeURIComponent(token)}&pubId=${encodeURIComponent(pubId)}`,
+        )
         setState('success')
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'unsubscribe_failed'
-        if (message === 'token_expired' || message === 'token_invalid') {
+        if (err instanceof ApiClientError && (err.status === 400 || err.status === 404)) {
           setState('invalid')
         } else {
           setState('error')
@@ -35,7 +38,7 @@ function UnsubscribeContent(): React.JSX.Element {
     }
 
     void doUnsubscribe()
-  }, [token])
+  }, [token, pubId])
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">

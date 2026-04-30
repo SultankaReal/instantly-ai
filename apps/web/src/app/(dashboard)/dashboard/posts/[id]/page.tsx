@@ -94,7 +94,8 @@ export default function PostEditorPage() {
   }
 
   // Debounced autosave — triggers 30s after last change
-  const debouncedSave = useDebouncedCallback(savePost, 30_000);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const debouncedSave = useDebouncedCallback(savePost as (...args: any[]) => void, 30_000);
 
   function handleTitleChange(value: string): void {
     setTitle(value);
