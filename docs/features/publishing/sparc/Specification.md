@@ -101,7 +101,7 @@ Feature: Send post to subscribers
     When I POST /api/posts/post-456/send (authenticated as owner)
     Then the response status is 200
     And 2500 EmailSend records are created with status "queued"
-    And 3 BullMQ jobs are enqueued on queue "email:send-batch" (batches of 1000)
+    And 5 BullMQ jobs are enqueued on queue "email:send-batch" (batches of 500)
     And post.status becomes "sent"
     And post.sent_at is set to now
     And post.published_at is set to now (if previously null)
@@ -267,7 +267,7 @@ Feature: Delete a draft post
 |-----|-------------|
 | Autosave | Fires 30 seconds after the last content change in the editor |
 | Paywall truncation | Character-based, server-side, 20% of `content_html` length |
-| Batch size | 1000 EmailSend records per BullMQ job (see Research_Findings.md for Postmark limit caveat) |
+| Batch size | 500 EmailSend records per BullMQ job (Postmark batch API limit is 500 messages/call) |
 | HTML sanitization | DOMPurify applied on every write of `content_html` (create and update) |
 | Slug max length | 100 characters; derived from title, lowercased, alphanumeric + hyphens only |
 | meta_description max | 160 characters; validated by Zod at API boundary |

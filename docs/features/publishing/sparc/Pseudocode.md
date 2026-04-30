@@ -74,7 +74,7 @@ async function sendPost(postId: string, authorId: string): Promise<SendResult> {
     skipDuplicates: true
   })
 
-  // 5. Enqueue BullMQ jobs in batches of BATCH_SIZE (= 1000)
+  // 5. Enqueue BullMQ jobs in batches of BATCH_SIZE (= 500, Postmark batch API limit)
   //    app.emailQueue is a plugin-level singleton — NOT new Queue() here
   const batches = chunk(subscribers, BATCH_SIZE)
   for (const [index, batch] of batches.entries()) {
