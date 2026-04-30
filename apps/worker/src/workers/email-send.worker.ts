@@ -65,8 +65,8 @@ async function processSendBatch(job: Job<EmailBatch>): Promise<void> {
   const fromName = post.publication.name;
   const fromEmail = POSTMARK_FROM_EMAIL;
 
-  // Build Postmark message array
-  const messages: Message[] = recipients.map((r) => ({
+  // Build Postmark message array (cast to Message[] — SDK types are stricter than the API)
+  const messages = recipients.map((r) => ({
     From: `${fromName} <${fromEmail}>`,
     To: r.email,
     Subject: subject,
@@ -74,14 +74,9 @@ async function processSendBatch(job: Job<EmailBatch>): Promise<void> {
     TrackOpens: true,
     TrackLinks: 'HtmlAndText' as const,
     MessageStream: 'outbound',
-    // Tag for Postmark analytics
     Tag: `post-${postId}`,
-    Metadata: {
-      postId,
-      subscriberId: r.id,
-      publicationId,
-    },
-  }));
+    Metadata: { postId, subscriberId: r.id, publicationId },
+  })) as unknown as Message[];
 
   // Send via Postmark batch API
   let results: Awaited<ReturnType<typeof postmark.sendEmailBatch>>;
