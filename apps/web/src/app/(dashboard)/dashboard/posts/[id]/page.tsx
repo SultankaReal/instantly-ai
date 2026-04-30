@@ -38,10 +38,15 @@ export default function PostEditorPage() {
   const [subtitle, setSubtitle] = useState('');
   const [contentHtml, setContentHtml] = useState('');
   const [access, setAccess] = useState<'free' | 'paid'>('free');
+  const [metaDescription, setMetaDescription] = useState('');
+  const [scheduledAt, setScheduledAt] = useState('');
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState('');
+  const [publishing, setPublishing] = useState(false);
+  const [publishError, setPublishError] = useState('');
+  const [deleting, setDeleting] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [loading, setLoading] = useState(true);
 
@@ -60,6 +65,8 @@ export default function PostEditorPage() {
         setSubtitle(data.subtitle ?? '');
         setContentHtml(data.content_html);
         setAccess(data.access);
+        setMetaDescription(data.meta_description ?? '');
+        setScheduledAt(data.scheduled_at ? new Date(data.scheduled_at).toISOString().slice(0, 16) : '');
       } catch (err) {
         if (err instanceof ApiClientError) {
           setLoadError(err.message);
@@ -79,6 +86,7 @@ export default function PostEditorPage() {
     subtitle?: string;
     content_html?: string;
     access?: 'free' | 'paid';
+    meta_description?: string;
   }): Promise<void> {
     const token = getStoredToken();
     if (!token) return;
@@ -100,31 +108,55 @@ export default function PostEditorPage() {
   function handleTitleChange(value: string): void {
     setTitle(value);
     setSaveStatus('idle');
-    debouncedSave({ title: value, subtitle, content_html: contentHtml, access });
+    debouncedSave({ title: value, subtitle, content_html: contentHtml, access, meta_description: metaDescription });
   }
 
   function handleSubtitleChange(value: string): void {
     setSubtitle(value);
     setSaveStatus('idle');
-    debouncedSave({ title, subtitle: value, content_html: contentHtml, access });
+    debouncedSave({ title, subtitle: value, content_html: contentHtml, access, meta_description: metaDescription });
   }
 
   function handleContentChange(value: string): void {
     setContentHtml(value);
     setSaveStatus('idle');
-    debouncedSave({ title, subtitle, content_html: value, access });
+    debouncedSave({ title, subtitle, content_html: value, access, meta_description: metaDescription });
   }
 
   function handleAccessChange(value: 'free' | 'paid'): void {
     setAccess(value);
     setSaveStatus('idle');
-    debouncedSave({ title, subtitle, content_html: contentHtml, access: value });
+    debouncedSave({ title, subtitle, content_html: contentHtml, access: value, meta_description: metaDescription });
+  }
+
+  function handleMetaDescriptionChange(value: string): void {
+    setMetaDescription(value);
+    setSaveStatus('idle');
+    debouncedSave({ title, subtitle, content_html: contentHtml, access, meta_description: value });
+  }
+
+  async function handleScheduleChange(value: string): Promise<void> {
+    setScheduledAt(value);
+    const token = getStoredToken();
+    if (!token) return;
+    setSaveStatus('saving');
+    try {
+      await apiClient.patch(
+        `/api/posts/${postId}`,
+        { scheduled_at: value ? new Date(value).toISOString() : null },
+        { token },
+      );
+      setSaveStatus('saved');
+      setLastSavedAt(new Date());
+    } catch {
+      setSaveStatus('error');
+    }
   }
 
   // Manual save
   async function handleManualSave(e: FormEvent): Promise<void> {
     e.preventDefault();
-    await savePost({ title, subtitle, content_html: contentHtml, access });
+    await savePost({ title, subtitle, content_html: contentHtml, access, meta_description: metaDescription });
   }
 
   // Send now
@@ -151,6 +183,41 @@ export default function PostEditorPage() {
     }
   }
 
+  // Publish (without emailing)
+  async function handlePublish(): Promise<void> {
+    if (!confirm('Publish this post publicly? It will be visible at its public URL but no email will be sent.')) return;
+    setPublishError('');
+    setPublishing(true);
+    const token = getStoredToken();
+    if (!token) { router.push('/login'); return; }
+    try {
+      const updated = await apiClient.patch<PostResponse>(`/api/posts/${postId}`, { status: 'published' }, { token });
+      setPost(updated);
+    } catch (err) {
+      if (err instanceof ApiClientError) {
+        setPublishError(err.message);
+      } else {
+        setPublishError('Failed to publish post.');
+      }
+    } finally {
+      setPublishing(false);
+    }
+  }
+
+  // Delete draft
+  async function handleDelete(): Promise<void> {
+    if (!confirm('Delete this draft? This cannot be undone.')) return;
+    setDeleting(true);
+    const token = getStoredToken();
+    if (!token) { router.push('/login'); return; }
+    try {
+      await apiClient.delete(`/api/posts/${postId}`, { token });
+      router.push('/dashboard/posts');
+    } catch {
+      setDeleting(false);
+    }
+  }
+
   function formatSavedTime(date: Date): string {
     const seconds = Math.round((Date.now() - date.getTime()) / 1000);
     if (seconds < 60) return `${seconds}s ago`;
@@ -170,7 +237,7 @@ export default function PostEditorPage() {
       <div className="p-8">
         <div className="rounded-lg bg-red-50 p-4 text-sm text-red-700">{loadError}</div>
         <Link href="/dashboard/posts" className="mt-4 inline-block text-sm text-sky-600 hover:underline">
-          ← Back to posts
+          Back to posts
         </Link>
       </div>
     );
@@ -184,7 +251,7 @@ export default function PostEditorPage() {
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <Link href="/dashboard/posts" className="text-sm text-gray-500 hover:text-gray-700">
-            ← Posts
+            Posts
           </Link>
           <h1 className="text-xl font-semibold text-gray-900">Edit post</h1>
           {post && (
@@ -204,7 +271,7 @@ export default function PostEditorPage() {
           )}
         </div>
 
-        {/* Save indicator */}
+        {/* Save indicator + Preview link */}
         <div className="flex items-center gap-3">
           {saveStatus === 'saving' && (
             <span className="text-xs text-gray-400">Saving…</span>
@@ -217,12 +284,28 @@ export default function PostEditorPage() {
           {saveStatus === 'error' && (
             <span className="text-xs text-red-600">Save failed</span>
           )}
+
+          {post && (post.status === 'published' || post.status === 'sent') && (
+            <a
+              href={`/${post.publication.slug}/posts/${post.slug}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm text-sky-600 hover:underline"
+            >
+              Preview
+            </a>
+          )}
+          {post && post.status === 'draft' && (
+            <span className="cursor-not-allowed text-sm text-gray-400" title="Publish to preview">
+              Preview
+            </span>
+          )}
         </div>
       </div>
 
-      {sendError && (
+      {(sendError || publishError) && (
         <div className="mb-6 rounded-lg bg-red-50 p-4 text-sm text-red-700" role="alert">
-          {sendError}
+          {sendError || publishError}
         </div>
       )}
 
@@ -293,6 +376,33 @@ export default function PostEditorPage() {
           </div>
         </div>
 
+        {/* Schedule */}
+        <div>
+          <label htmlFor="edit-schedule" className="label mb-1">
+            Schedule send <span className="font-normal text-gray-400">(optional)</span>
+          </label>
+          <input
+            id="edit-schedule"
+            type="datetime-local"
+            value={scheduledAt}
+            onChange={(e) => handleScheduleChange(e.target.value)}
+            min={new Date(Date.now() + 60_000).toISOString().slice(0, 16)}
+            className="input w-auto text-sm"
+          />
+          {scheduledAt && (
+            <button
+              type="button"
+              onClick={() => handleScheduleChange('')}
+              className="ml-2 text-xs text-red-500 hover:underline"
+            >
+              Clear
+            </button>
+          )}
+          <p className="mt-1 text-xs text-gray-400">
+            Leave blank to save as draft. When set, post will be marked &quot;scheduled&quot;.
+          </p>
+        </div>
+
         {/* Content */}
         <div>
           <label htmlFor="edit-content" className="label mb-1">
@@ -309,6 +419,23 @@ export default function PostEditorPage() {
           <p className="mt-1.5 text-xs text-gray-500">
             Autosaves 30 seconds after your last change.
           </p>
+        </div>
+
+        {/* Meta description */}
+        <div>
+          <label htmlFor="edit-meta" className="label mb-1">
+            SEO meta description <span className="font-normal text-gray-400">(optional, 160 chars)</span>
+          </label>
+          <textarea
+            id="edit-meta"
+            value={metaDescription}
+            onChange={(e) => handleMetaDescriptionChange(e.target.value)}
+            maxLength={160}
+            rows={2}
+            className="input resize-none text-sm"
+            placeholder="Short description for search engines…"
+          />
+          <p className="mt-1 text-xs text-gray-400">{metaDescription.length}/160 characters</p>
         </div>
 
         {/* Actions */}
@@ -328,9 +455,31 @@ export default function PostEditorPage() {
             </button>
           )}
 
+          {(post?.status === 'draft' || post?.status === 'scheduled') && (
+            <button
+              type="button"
+              onClick={handlePublish}
+              disabled={publishing}
+              className="rounded-lg bg-sky-600 px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-sky-700 disabled:opacity-50"
+            >
+              {publishing ? 'Publishing…' : 'Publish'}
+            </button>
+          )}
+
           <Link href="/dashboard/posts" className="btn-secondary px-5 py-2">
             Cancel
           </Link>
+
+          {post?.status === 'draft' && (
+            <button
+              type="button"
+              onClick={handleDelete}
+              disabled={deleting}
+              className="ml-auto text-sm text-red-600 hover:text-red-700 disabled:opacity-50"
+            >
+              {deleting ? 'Deleting…' : 'Delete draft'}
+            </button>
+          )}
         </div>
       </form>
     </div>

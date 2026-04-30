@@ -16,8 +16,6 @@ import type {
 import { QUEUE_NAMES, JOB_NAMES } from '@inkflow/shared-types';
 import type { EmailBatch, EmailRecipient } from '@inkflow/shared-types';
 
-const BATCH_SIZE = 1000;
-
 function sanitizeHtml(html: string): string {
   const window = new JSDOM('').window;
   // DOMPurify requires a window-like environment
@@ -53,6 +51,19 @@ function truncateHtmlTo20Percent(html: string): string {
 }
 
 export async function postRoutes(app: FastifyInstance): Promise<void> {
+  // Shared queue instance — created once, not per-request, to avoid connection leaks
+  const BATCH_SIZE = 500; // Postmark batch API allows max 500 messages per call
+
+  const emailQueue = new Queue(QUEUE_NAMES.EMAIL_SEND, {
+    connection: app.redis,
+    defaultJobOptions: {
+      attempts: 5,
+      backoff: { type: 'exponential', delay: 2000 },
+      removeOnComplete: 100,
+      removeOnFail: 200,
+    },
+  });
+
   // GET /api/publications/:pubId/posts — auth required, paginated list
   app.get(
     '/api/publications/:pubId/posts',
@@ -298,6 +309,88 @@ export async function postRoutes(app: FastifyInstance): Promise<void> {
     },
   );
 
+  // GET /api/publications/:pubId/posts/:postSlug — public, no auth, paywall enforced
+  app.get(
+    '/api/publications/:pubId/posts/:postSlug',
+    {
+      preHandler: [app.optionalAuthenticate],
+      schema: {
+        params: {
+          type: 'object',
+          required: ['pubId', 'postSlug'],
+          properties: {
+            pubId: { type: 'string', format: 'uuid' },
+            postSlug: { type: 'string' },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      const userId: string | null = request.user?.sub ?? null;
+      const { pubId, postSlug } = request.params as { pubId: string; postSlug: string };
+
+      const post = await app.prisma.post.findUnique({
+        where: { publication_id_slug: { publication_id: pubId, slug: postSlug } },
+        include: {
+          publication: { select: { id: true, name: true, slug: true } },
+        },
+      });
+
+      if (!post) {
+        return reply.status(404).send({
+          success: false,
+          error: { code: 'POST_NOT_FOUND', message: 'Post not found' },
+        });
+      }
+
+      // Only published/sent posts are publicly accessible
+      if (post.status !== 'published' && post.status !== 'sent') {
+        if (!userId || userId !== post.author_id) {
+          return reply.status(404).send({
+            success: false,
+            error: { code: 'POST_NOT_FOUND', message: 'Post not found' },
+          });
+        }
+      }
+
+      // Paywall: paid posts require active paid subscriber
+      if (post.access === 'paid') {
+        let hasAccess = false;
+        if (userId) {
+          if (userId === post.author_id) {
+            hasAccess = true;
+          } else {
+            const subscriber = await app.prisma.subscriber.findFirst({
+              where: {
+                publication_id: post.publication_id,
+                email: request.user?.email ?? '',
+                status: 'active',
+                tier: { in: ['paid', 'trial'] },
+              },
+              select: { id: true },
+            });
+            hasAccess = !!subscriber;
+          }
+        }
+        if (!hasAccess) {
+          const truncatedHtml = truncateHtmlTo20Percent(post.content_html);
+          const upgradeUrl = `/${post.publication.slug}/subscribe`;
+          return reply.send({
+            success: true,
+            data: {
+              ...post,
+              content_html: truncatedHtml,
+              truncated: true,
+              upgrade_url: upgradeUrl,
+            },
+          });
+        }
+      }
+
+      return reply.send({ success: true, data: post });
+    },
+  );
+
   // PATCH /api/posts/:id — auth required, ownership verified
   app.patch(
     '/api/posts/:id',
@@ -354,6 +447,10 @@ export async function postRoutes(app: FastifyInstance): Promise<void> {
             scheduled_at: body.scheduled_at,
             status: 'scheduled',
           }),
+          ...(body.status === 'published' && {
+            status: 'published',
+            published_at: new Date(),
+          }),
         },
         include: {
           publication: { select: { id: true, name: true, slug: true } },
@@ -364,6 +461,56 @@ export async function postRoutes(app: FastifyInstance): Promise<void> {
         success: true,
         data: updated,
       });
+    },
+  );
+
+  // DELETE /api/posts/:id — auth required, only drafts can be deleted
+  app.delete(
+    '/api/posts/:id',
+    {
+      preHandler: [app.authenticate],
+      schema: {
+        security: [{ bearerAuth: [] }],
+        params: {
+          type: 'object',
+          required: ['id'],
+          properties: { id: { type: 'string', format: 'uuid' } },
+        },
+      },
+    },
+    async (request, reply): Promise<{ success: true }> => {
+      const authorId = request.user.sub;
+      const { id } = request.params as { id: string };
+
+      const post = await app.prisma.post.findUnique({
+        where: { id },
+        select: { id: true, author_id: true, status: true },
+      });
+
+      if (!post) {
+        return reply.status(404).send({
+          success: false,
+          error: { code: 'POST_NOT_FOUND', message: 'Post not found' },
+        });
+      }
+
+      if (post.author_id !== authorId) {
+        return reply.status(403).send({
+          success: false,
+          error: { code: 'FORBIDDEN', message: 'You do not own this post' },
+        });
+      }
+
+      if (post.status !== 'draft') {
+        return reply.status(409).send({
+          success: false,
+          error: { code: 'CANNOT_DELETE_SENT_POST', message: 'Only draft posts can be deleted' },
+        });
+      }
+
+      await app.prisma.post.delete({ where: { id } });
+
+      return reply.status(200).send({ success: true });
     },
   );
 
@@ -388,7 +535,7 @@ export async function postRoutes(app: FastifyInstance): Promise<void> {
       // Verify post exists and author owns it
       const post = await app.prisma.post.findUnique({
         where: { id: postId },
-        select: { id: true, author_id: true, publication_id: true, status: true },
+        select: { id: true, author_id: true, publication_id: true, status: true, published_at: true },
       });
 
       if (!post) {
@@ -422,10 +569,14 @@ export async function postRoutes(app: FastifyInstance): Promise<void> {
       });
 
       if (subscribers.length === 0) {
-        // Mark as sent anyway (no-op)
+        // Mark as sent anyway (no-op), set published_at if not already set
         await app.prisma.post.update({
           where: { id: postId },
-          data: { status: 'sent', sent_at: new Date() },
+          data: {
+            status: 'sent',
+            sent_at: new Date(),
+            published_at: post.published_at ?? new Date(),
+          },
         });
 
         return reply.send({
@@ -448,16 +599,6 @@ export async function postRoutes(app: FastifyInstance): Promise<void> {
       });
 
       // Split subscribers into batches of BATCH_SIZE and enqueue BullMQ jobs
-      const emailQueue = new Queue(QUEUE_NAMES.EMAIL_SEND, {
-        connection: app.redis,
-        defaultJobOptions: {
-          attempts: 5,
-          backoff: { type: 'exponential', delay: 2000 },
-          removeOnComplete: 100,
-          removeOnFail: 200,
-        },
-      });
-
       const batches: EmailRecipient[][] = [];
       for (let i = 0; i < subscribers.length; i += BATCH_SIZE) {
         batches.push(subscribers.slice(i, i + BATCH_SIZE));
@@ -483,12 +624,14 @@ export async function postRoutes(app: FastifyInstance): Promise<void> {
         await emailQueue.add(JOB_NAMES.SEND_EMAIL_BATCH, payload);
       }
 
-      await emailQueue.close();
-
-      // Update post status to 'sent'
+      // Update post status to 'sent', set published_at if not already set
       await app.prisma.post.update({
         where: { id: postId },
-        data: { status: 'sent', sent_at: new Date() },
+        data: {
+          status: 'sent',
+          sent_at: new Date(),
+          published_at: post.published_at ?? new Date(),
+        },
       });
 
       return reply.send({

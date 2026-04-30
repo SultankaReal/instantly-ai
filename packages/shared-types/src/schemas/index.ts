@@ -100,7 +100,9 @@ export const CreatePostSchema = z.object({
 
 export type CreatePostRequest = z.infer<typeof CreatePostSchema>;
 
-export const UpdatePostSchema = CreatePostSchema.partial();
+export const UpdatePostSchema = CreatePostSchema.partial().extend({
+  status: z.enum(['draft', 'published']).optional(),
+});
 export type UpdatePostRequest = z.infer<typeof UpdatePostSchema>;
 
 // ─── Send Post Schema ─────────────────────────────────────────────────────────
