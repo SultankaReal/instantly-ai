@@ -24,8 +24,6 @@ export async function subscriberRoutes(app: FastifyInstance): Promise<void> {
     '/api/publications/:pubId/subscribers',
     {
       schema: {
-        description: 'Subscribe to a publication (double opt-in)',
-        tags: ['subscribers'],
         params: {
           type: 'object',
           required: ['pubId'],
@@ -123,8 +121,6 @@ export async function subscriberRoutes(app: FastifyInstance): Promise<void> {
     '/api/subscribers/confirm',
     {
       schema: {
-        description: 'Confirm a subscription using the token from the email',
-        tags: ['subscribers'],
         querystring: {
           type: 'object',
           required: ['token'],
@@ -183,8 +179,6 @@ export async function subscriberRoutes(app: FastifyInstance): Promise<void> {
     '/api/subscribers/unsubscribe',
     {
       schema: {
-        description: 'Unsubscribe using a one-click unsubscribe token',
-        tags: ['subscribers'],
         querystring: {
           type: 'object',
           required: ['token'],
@@ -242,8 +236,6 @@ export async function subscriberRoutes(app: FastifyInstance): Promise<void> {
     {
       preHandler: [app.authenticate],
       schema: {
-        description: 'List subscribers for a publication (author only)',
-        tags: ['subscribers'],
         security: [{ bearerAuth: [] }],
         params: {
           type: 'object',

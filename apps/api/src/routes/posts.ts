@@ -59,8 +59,6 @@ export async function postRoutes(app: FastifyInstance): Promise<void> {
     {
       preHandler: [app.authenticate],
       schema: {
-        description: 'List posts for a publication',
-        tags: ['posts'],
         security: [{ bearerAuth: [] }],
         params: {
           type: 'object',
@@ -137,8 +135,6 @@ export async function postRoutes(app: FastifyInstance): Promise<void> {
     {
       preHandler: [app.authenticate],
       schema: {
-        description: 'Create a new post in a publication',
-        tags: ['posts'],
         security: [{ bearerAuth: [] }],
         params: {
           type: 'object',
@@ -220,8 +216,6 @@ export async function postRoutes(app: FastifyInstance): Promise<void> {
     {
       preHandler: [app.optionalAuthenticate],
       schema: {
-        description: 'Get a post by ID (paywall enforced for paid posts)',
-        tags: ['posts'],
         params: {
           type: 'object',
           required: ['id'],
@@ -310,8 +304,6 @@ export async function postRoutes(app: FastifyInstance): Promise<void> {
     {
       preHandler: [app.authenticate],
       schema: {
-        description: 'Update a post',
-        tags: ['posts'],
         security: [{ bearerAuth: [] }],
         params: {
           type: 'object',
@@ -381,8 +373,6 @@ export async function postRoutes(app: FastifyInstance): Promise<void> {
     {
       preHandler: [app.authenticate],
       schema: {
-        description: 'Send a post to all active subscribers',
-        tags: ['posts'],
         security: [{ bearerAuth: [] }],
         params: {
           type: 'object',
@@ -517,8 +507,6 @@ export async function postRoutes(app: FastifyInstance): Promise<void> {
     {
       preHandler: [app.authenticate],
       schema: {
-        description: 'Get analytics for a sent post',
-        tags: ['posts'],
         security: [{ bearerAuth: [] }],
         params: {
           type: 'object',

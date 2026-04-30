@@ -16,8 +16,8 @@ COPY packages/shared-types ./packages/shared-types
 COPY apps/api ./apps/api
 COPY tsconfig.base.json ./
 RUN npm run build --workspace=@inkflow/shared-types
-RUN npm run build --workspace=@inkflow/api
 RUN cd apps/api && npx prisma generate
+RUN npm run build --workspace=@inkflow/api
 
 # ── runner: minimal production image ──────────────────────────────────────────
 FROM base AS runner

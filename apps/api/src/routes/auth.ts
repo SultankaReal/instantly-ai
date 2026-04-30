@@ -20,8 +20,6 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     '/api/auth/register',
     {
       schema: {
-        description: 'Register a new author account',
-        tags: ['auth'],
         body: {
           type: 'object',
           required: ['email', 'password', 'name', 'confirmPassword'],
@@ -110,8 +108,6 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     '/api/auth/login',
     {
       schema: {
-        description: 'Authenticate with email and password',
-        tags: ['auth'],
         body: {
           type: 'object',
           required: ['email', 'password'],
@@ -199,8 +195,6 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     '/api/auth/refresh',
     {
       schema: {
-        description: 'Rotate refresh token and issue new access + refresh tokens',
-        tags: ['auth'],
         body: {
           type: 'object',
           required: ['refreshToken'],
@@ -306,8 +300,6 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     '/api/auth/logout',
     {
       schema: {
-        description: 'Revoke refresh token and log out',
-        tags: ['auth'],
         body: {
           type: 'object',
           required: ['refreshToken'],

@@ -7,7 +7,7 @@ function getStripe(): Stripe {
   if (!secretKey) {
     throw new Error('STRIPE_SECRET_KEY environment variable is required');
   }
-  return new Stripe(secretKey, { apiVersion: '2024-11-20.acacia' });
+  return new Stripe(secretKey, { apiVersion: '2025-02-24.acacia' });
 }
 
 export async function paymentRoutes(app: FastifyInstance): Promise<void> {
@@ -17,8 +17,6 @@ export async function paymentRoutes(app: FastifyInstance): Promise<void> {
     {
       preHandler: [app.optionalAuthenticate],
       schema: {
-        description: 'Create a Stripe Checkout session for a paid subscription',
-        tags: ['payments'],
         params: {
           type: 'object',
           required: ['pubId'],
@@ -131,8 +129,6 @@ export async function paymentRoutes(app: FastifyInstance): Promise<void> {
     {
       preHandler: [app.authenticate],
       schema: {
-        description: 'Get the authenticated user\'s subscription status for a publication',
-        tags: ['payments'],
         security: [{ bearerAuth: [] }],
         params: {
           type: 'object',

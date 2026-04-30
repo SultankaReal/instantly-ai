@@ -12,8 +12,6 @@ export async function healthRoutes(app: FastifyInstance): Promise<void> {
     '/api/health',
     {
       schema: {
-        description: 'Health check — verifies DB and Redis connectivity',
-        tags: ['health'],
         response: {
           200: {
             type: 'object',

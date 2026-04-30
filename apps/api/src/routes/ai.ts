@@ -83,8 +83,6 @@ export async function aiRoutes(app: FastifyInstance): Promise<void> {
     {
       preHandler: [app.authenticate],
       schema: {
-        description: 'Generate a newsletter draft using Claude AI',
-        tags: ['ai'],
         security: [{ bearerAuth: [] }],
         body: {
           type: 'object',

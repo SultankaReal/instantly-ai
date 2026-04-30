@@ -8,8 +8,6 @@ export async function publicationRoutes(app: FastifyInstance): Promise<void> {
     '/api/publications/:slug',
     {
       schema: {
-        description: 'Get a publication by slug (public)',
-        tags: ['publications'],
         params: {
           type: 'object',
           required: ['slug'],
@@ -59,8 +57,6 @@ export async function publicationRoutes(app: FastifyInstance): Promise<void> {
     {
       preHandler: [app.authenticate],
       schema: {
-        description: 'Create a new publication',
-        tags: ['publications'],
         security: [{ bearerAuth: [] }],
         body: {
           type: 'object',
@@ -121,8 +117,6 @@ export async function publicationRoutes(app: FastifyInstance): Promise<void> {
     {
       preHandler: [app.authenticate],
       schema: {
-        description: 'Get own publication by ID',
-        tags: ['publications'],
         security: [{ bearerAuth: [] }],
         params: {
           type: 'object',
@@ -184,8 +178,6 @@ export async function publicationRoutes(app: FastifyInstance): Promise<void> {
     {
       preHandler: [app.authenticate],
       schema: {
-        description: 'Update a publication',
-        tags: ['publications'],
         security: [{ bearerAuth: [] }],
         params: {
           type: 'object',

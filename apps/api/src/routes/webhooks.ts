@@ -50,7 +50,7 @@ function getStripe(): Stripe {
   if (!secretKey) {
     throw new Error('STRIPE_SECRET_KEY environment variable is required');
   }
-  return new Stripe(secretKey, { apiVersion: '2024-11-20.acacia' });
+  return new Stripe(secretKey, { apiVersion: '2025-02-24.acacia' });
 }
 
 function verifyPostmarkSignature(payload: string, signature: string, token: string): boolean {
@@ -77,8 +77,6 @@ export async function webhookRoutes(app: FastifyInstance): Promise<void> {
     '/api/webhooks/stripe',
     {
       schema: {
-        description: 'Stripe webhook endpoint',
-        tags: ['webhooks'],
       },
     },
     async (request, reply): Promise<{ received: boolean }> => {
@@ -142,8 +140,6 @@ export async function webhookRoutes(app: FastifyInstance): Promise<void> {
     '/api/webhooks/postmark',
     {
       schema: {
-        description: 'Postmark webhook endpoint for email events',
-        tags: ['webhooks'],
       },
     },
     async (request, reply): Promise<{ received: boolean }> => {
