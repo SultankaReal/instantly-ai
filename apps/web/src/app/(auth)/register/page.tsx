@@ -43,12 +43,12 @@ function RegisterFormContent(): React.JSX.Element {
         password: data.password,
         name: data.name,
         confirmPassword: data.confirmPassword,
-      }) as { accessToken: string; refreshToken: string }
-      setTokens(response.accessToken, response.refreshToken)
+      }) as { success: boolean; data: { accessToken: string; refreshToken: string } }
+      setTokens(response.data.accessToken, response.data.refreshToken)
       router.push('/dashboard')
     } catch (err) {
       const message = err instanceof Error ? err.message : 'register_failed'
-      if (message === 'email_already_exists') {
+      if (message.includes('EMAIL_ALREADY_EXISTS') || message.includes('email_already_exists')) {
         setServerError('Пользователь с таким email уже существует')
       } else {
         setServerError('Произошла ошибка при регистрации. Попробуйте ещё раз.')

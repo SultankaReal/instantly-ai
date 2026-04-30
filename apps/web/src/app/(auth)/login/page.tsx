@@ -31,12 +31,12 @@ export default function LoginPage(): React.JSX.Element {
   const onSubmit = async (data: LoginForm): Promise<void> => {
     setServerError(null)
     try {
-      const response = await api.auth.login(data) as { accessToken: string; refreshToken: string }
-      setTokens(response.accessToken, response.refreshToken)
+      const response = await api.auth.login(data) as { success: boolean; data: { accessToken: string; refreshToken: string } }
+      setTokens(response.data.accessToken, response.data.refreshToken)
       router.push('/dashboard')
     } catch (err) {
       const message = err instanceof Error ? err.message : 'login_failed'
-      if (message === 'invalid_credentials') {
+      if (message.includes('INVALID_CREDENTIALS') || message.includes('invalid_credentials')) {
         setServerError('Неверный email или пароль')
       } else {
         setServerError('Произошла ошибка. Попробуйте ещё раз.')

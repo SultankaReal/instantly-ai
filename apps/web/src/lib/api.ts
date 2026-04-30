@@ -9,8 +9,11 @@ async function apiFetch<T>(path: string, options?: RequestInit & { token?: strin
 
   const res = await fetch(`${API_URL}${path}`, { ...restOptions, headers })
   if (!res.ok) {
-    const error = await res.json().catch(() => ({ error: 'network_error' }))
-    throw new Error((error as { error?: string }).error ?? 'request_failed')
+    const body = await res.json().catch(() => null)
+    const code = (body as { error?: { code?: string } } | null)?.error?.code
+      ?? (body as { message?: string } | null)?.message
+      ?? 'request_failed'
+    throw new Error(code)
   }
   return res.json() as Promise<T>
 }
