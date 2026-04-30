@@ -1,5 +1,6 @@
 import Fastify, { FastifyInstance } from 'fastify';
 import { ZodError } from 'zod';
+import multipart from '@fastify/multipart';
 
 import { corsPlugin } from './plugins/cors';
 import { dbPlugin } from './plugins/db';
@@ -14,6 +15,7 @@ import { subscriberRoutes } from './routes/subscribers';
 import { paymentRoutes } from './routes/payments';
 import { webhookRoutes } from './routes/webhooks';
 import { aiRoutes } from './routes/ai';
+import { importRoutes } from './routes/import';
 
 export async function buildApp(): Promise<FastifyInstance> {
   const isDev = process.env['NODE_ENV'] !== 'production';
@@ -41,6 +43,14 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(redisPlugin);
   await app.register(authPlugin);
 
+  await app.register(multipart, {
+    limits: {
+      fileSize: 50 * 1024 * 1024, // 50 MB
+      files: 1,
+      fields: 5,
+    },
+  });
+
   // ── Routes ────────────────────────────────────────────────────────────────
   await app.register(healthRoutes);
   await app.register(authRoutes);
@@ -50,6 +60,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(paymentRoutes);
   await app.register(webhookRoutes);
   await app.register(aiRoutes);
+  await app.register(importRoutes);
 
   // ── Global error handler ──────────────────────────────────────────────────
   app.setErrorHandler((error, request, reply) => {

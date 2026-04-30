@@ -80,7 +80,7 @@ export type DunningEmailJob = {
 
 export const QUEUE_NAMES = {
   EMAIL_SEND: 'email-send',
-  IMPORT_SUBSCRIBERS: 'import-subscribers',
+  IMPORT_SUBSCRIBERS: 'import:substack',
 } as const;
 
 export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES];

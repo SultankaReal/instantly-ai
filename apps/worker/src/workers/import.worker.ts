@@ -51,6 +51,15 @@ async function processImport(job: Job<ImportJob>): Promise<void> {
     );
   }
 
+  // ── 1b. ZIP bomb protection ───────────────────────────────────────────────
+  const MAX_UNCOMPRESSED = 100 * 1024 * 1024; // 100 MB
+  const totalUncompressed = zip.getEntries().reduce((sum, e) => sum + e.header.size, 0);
+  if (totalUncompressed > MAX_UNCOMPRESSED) {
+    throw new UnrecoverableError(
+      `ZIP bomb detected — uncompressed size ${totalUncompressed} bytes exceeds 100 MB limit`,
+    );
+  }
+
   // ── 2. Locate subscribers.csv inside the archive ──────────────────────────
   const csvEntry = zip.getEntries().find((e) =>
     path.basename(e.entryName).toLowerCase() === 'subscribers.csv',
