@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PulseOS · CJM Prototype · WHOOP Analogue</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+    .fade-in { animation: fadeIn 0.2s ease-in; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+    .btn-hover:hover { opacity: 0.88; }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState } = React;
+
+    // ═══════════════════════════════════════════════════════
+    // VARIANT DATA — generated from M2 WHOOP analysis
+    // ═══════════════════════════════════════════════════════
+    const VARIANTS = {
+      A: {
+        name: "Спортивный Тренер", emoji: "🏃",
+        c: { bg:"#059669", light:"#ecfdf5", border:"#10b981", text:"#047857", badgeBg:"#d1fae5", badgeTxt:"#065f46" },
+        landing: {
+          hl: "Тренируешься 5 дней в неделю, но не растёшь?",
+          sub: "PulseOS анализирует твоё восстановление и говорит: когда жать на газ, когда — нет. С GPS и адаптацией под твой вид спорта.",
+          cta: "Узнать почему",
+          hero_stat: "Recovery Score 67%",
+          hero_sub: "Средний бегун тренируется на 40% усилий, когда можно было 80%",
+        },
+        onboarding: {
+          q1: "Какой твой основной вид спорта?",
+          q1_opts: ["🏃 Бег", "🚴 Велоспорт", "🏋️ CrossFit", "🏊 Триатлон", "💪 Силовой"],
+          q2: "Сколько тренировок в неделю?",
+          q2_opts: ["2–3 раза", "4–5 раз", "6+ раз (серьёзный атлет)"],
+          q3: "Главная цель?",
+          q3_opts: ["Личный рекорд", "Здоровье и долголетие", "Похудение", "Подготовка к соревнованию"],
+          style: "Спортивный квиз с прогресс-баром",
+        },
+        aha: {
+          title: "Твой Recovery Score: 67%",
+          desc: "Вчера CrossFit 4×5 back squat → HRV упал на 18%. Сегодня рекомендация: кардио до 75% ЧСС, без тяжёлых весов.",
+          wow: "⚡ ВОТ ПОЧЕМУ вчерашняя тренировка была такой тяжёлой",
+          kpi: "Recovery за 7 дней  •  Strain по дням  •  GPS трек",
+          day: "День 2 утром",
+        },
+        dash: {
+          hook: "Утренний Recovery Score (6:00–8:00)",
+          lesson: "🏅 Сегодня можно на 80% — беги интервалы",
+          stats: ["Recovery: 67% 🟡", "Strain вчера: 14.2", "HRV: 52ms ↓5"],
+          extra: "📍 Вчерашний трек: 8.4 км, avg HR 154 bpm",
+        },
+        pay: {
+          when: "День 14 (привычка 2 недели)",
+          frame: "Ты уже видел, как это работает. Открой AI‑тренера для своего спорта — персональный план на 90 дней.",
+          price: "$15/мес Sport  ·  $20/мес Pro + AI Coach",
+          cta: "Начать тренироваться умнее",
+        },
+        inv: {
+          hook: "Пригласи тренировочного партнёра",
+          mech: "Оба получаете +1 месяц бесплатно. Сравнивайте Recovery после совместных тренировок.",
+          copy: "«Попробуй PulseOS — я наконец понял, почему перетренировался»",
+        },
+      },
+      B: {
+        name: "Биохакер", emoji: "🧬",
+        c: { bg:"#7c3aed", light:"#f5f3ff", border:"#8b5cf6", text:"#6d28d9", badgeBg:"#ede9fe", badgeTxt:"#5b21b6" },
+        landing: {
+          hl: "Узнай свой биологический возраст. Замедли старение с данными.",
+          sub: "PulseOS рассчитывает твой PULSE Age на основе HRV, сна, ЧСС и восстановления. Данные каждый день. Прогресс каждую неделю.",
+          cta: "Рассчитать PULSE Age",
+          hero_stat: "PULSE Age: 31",
+          hero_sub: "Хронологический возраст: 35  •  Ты замедляешь старение на 4 года",
+        },
+        onboarding: {
+          q1: "Твоя главная цель?",
+          q1_opts: ["⏳ Прожить дольше и здоровее", "⚡ Оптимизировать производительность", "📊 Следить за метриками здоровья"],
+          q2: "Что уже отслеживаешь?",
+          q2_opts: ["Ничего нового", "Сон и стресс", "HRV и ЧСС", "Всё подряд (Oura, WHOOP, CGM)"],
+          q3: "Вдохновение откуда?",
+          q3_opts: ["Peter Attia / «Outlive»", "Andrew Huberman", "Bryan Johnson", "Другой источник"],
+          style: "Минималистичный научный квиз",
+        },
+        aha: {
+          title: "PULSE Age: 31.4 года",
+          desc: "Твой хронологический возраст: 35. Данные HRV, сна и восстановления за 3 дня: твоё тело на 3.6 года моложе паспорта.",
+          wow: "🧬 9 биомаркеров  •  3 дня данных  •  1 число",
+          kpi: "Pace of Aging  •  PULSE Age trends  •  9 метрик",
+          day: "День 3 (после первых 3 суток данных)",
+        },
+        dash: {
+          hook: "Еженедельный PULSE Age Update",
+          lesson: "📊 Эта неделя: PULSE Age снизился на 0.2 года — улучшение сна сработало",
+          stats: ["PULSE Age: 31.4 🟢", "HRV trend: ↑7% за нед.", "Deep Sleep: 18% → 22%"],
+          extra: "🔬 Корреляция: алкоголь в пятницу → –0.4 PULSE Age за 2 дня",
+        },
+        pay: {
+          when: "День 3 (сразу после первого PULSE Age, на Aha‑эмоции)",
+          frame: "Твой PULSE Age рассчитан. Включи Pro план, чтобы отслеживать прогресс и получать персональные рекомендации.",
+          price: "$20/мес Pro  •  $359/год Life (с ECG)",
+          cta: "Отслеживать биологический возраст",
+        },
+        inv: {
+          hook: "Сравни PULSE Age с другом‑биохакером",
+          mech: "Пригласи → оба видите сравнение PULSE Age. Кто «моложе»? Friendly competition на данных.",
+          copy: "«Мой биологический возраст 31 при хронологическом 35. Проверь свой.»",
+        },
+      },
+      C: {
+        name: "Производительность", emoji: "⚡",
+        c: { bg:"#2563eb", light:"#eff6ff", border:"#3b82f6", text:"#1d4ed8", badgeBg:"#dbeafe", badgeTxt:"#1e40af" },
+        landing: {
+          hl: "Работаешь 60+ часов в неделю? Твоё тело накапливает долг.",
+          sub: "PulseOS измеряет, как стресс, плохой сон и перегрузка влияют на продуктивность. Данные о теле — в терминах бизнеса.",
+          cta: "Измерить стресс‑нагрузку",
+          hero_stat: "Stress Score: 2.1 / 3",
+          hero_sub: "Высокий стресс крадёт ~2.3 часа продуктивности каждый день",
+        },
+        onboarding: {
+          q1: "Сколько часов ты работаешь в неделю?",
+          q1_opts: ["40–50 часов", "50–60 часов", "60–80 часов", "80+ часов"],
+          q2: "Главная проблема?",
+          q2_opts: ["Нет энергии после 15:00", "Сложно выключиться вечером", "Частые болезни", "Нарушен сон"],
+          q3: "Роль / профессия?",
+          q3_opts: ["Топ‑менеджер / CEO", "Предприниматель", "Консультант / Врач / Юрист", "Другое"],
+          style: "Деловой минимализм, без игривости",
+        },
+        aha: {
+          title: "Stress Profile за первую неделю",
+          desc: "Пик продуктивности: Вт–Ср 9:00–12:00. Stress peak: Пн и Чт вечер. Сон в пятницу –42 мин → суббота –18% Recovery.",
+          wow: "📊 Вот твой паттерн продуктивности на основе данных тела",
+          kpi: "Stress timeline  •  Продуктивное окно  •  Sleep debt",
+          day: "День 7 (после полной недели данных)",
+        },
+        dash: {
+          hook: "Еженедельный Performance Report",
+          lesson: "💼 Лучшее время стратегических решений: Вт 9–12. Встречи — на вторую половину дня.",
+          stats: ["Avg Stress: 2.1 🟠", "Продукт. окно: +2.1 ч/д", "Recovery avg: 58%"],
+          extra: "📅 Calendar sync: Recovery Score vs. тяжёлые meeting days = Strain",
+        },
+        pay: {
+          when: "День 7 (после Performance Report, proof of value)",
+          frame: "Ты видел свой паттерн продуктивности. Продолжи отслеживать и получи AI‑рекомендации по оптимизации расписания.",
+          price: "$20/мес Pro  ·  $250/чел/год Enterprise (от 5 чел)",
+          cta: "Оптимизировать производительность",
+        },
+        inv: {
+          hook: "Корпоративный wellness trial",
+          mech: "5 коллег → бесплатный месяц для всей команды. Team Recovery Dashboard для HR.",
+          copy: "«Узнал, чего реально стоят моему телу 60-часовые рабочие недели. Попробуй.»",
+        },
+      },
+    };
+
+    const CJM_META = {
+      landing:    { stage: "Awareness",     aarrr: "Acquisition", q: "Резонирует ли проблема? Хочется кликнуть?" },
+      onboarding: { stage: "Activation",    aarrr: "Activation",  q: "Понятны ли вопросы? Угадывает ли наш сегмент?" },
+      aha:        { stage: "Aha Moment",    aarrr: "Activation",  q: "WOW‑реакция есть? Хочется показать другу?" },
+      dash:       { stage: "Engagement",    aarrr: "Retention",   q: "Вернётся ли пользователь завтра? Есть ли hook?" },
+      pay:        { stage: "Monetisation",  aarrr: "Revenue",     q: "Понятна ли ценность? Цена ок?" },
+      inv:        { stage: "Amplification", aarrr: "Referral",    q: "Хочется ли пригласить? Механика ясна?" },
+    };
+
+    const SCREENS = ["landing","onboarding","aha","dash","pay","inv"];
+    const SCREEN_LABELS = {
+      landing: "🌐 Landing", onboarding: "📋 Onboarding",
+      aha: "⚡ Aha Moment", dash: "📊 Dashboard",
+      pay: "💳 Paywall", inv: "🤝 Referral",
+    };
+
+    // ── helpers ──────────────────────────────────────────────
+    function Card({ children, style, className="" }) {
+      return <div className={"rounded-2xl overflow-hidden shadow-lg " + className} style={style}>{children}</div>;
+    }
+
+    function Btn({ children, onClick, style, className="" }) {
+      return (
+        <button onClick={onClick} className={"btn-hover transition " + className}
+          style={{ cursor:"pointer", ...style }}>
+          {children}
+        </button>
+      );
+    }
+
+    // ── screen renderers ─────────────────────────────────────
+    function ScreenLanding({ v }) {
+      return (
+        <Card>
+          <div style={{ background: v.c.bg, color:"white", padding:"1.5rem" }}>
+            <div style={{ fontSize:"0.7rem", textTransform:"uppercase", letterSpacing:"0.12em", opacity:0.75, marginBottom:"0.5rem" }}>
+              PulseOS · {v.emoji} {v.name}
+            </div>
+            <h1 style={{ fontSize:"1.35rem", fontWeight:800, lineHeight:1.3, marginBottom:"0.75rem" }}>{v.landing.hl}</h1>
+            <p style={{ fontSize:"0.85rem", opacity:0.9, marginBottom:"1.25rem" }}>{v.landing.sub}</p>
+            <div style={{ background:"rgba(255,255,255,0.18)", borderRadius:"0.75rem", padding:"0.75rem", marginBottom:"1.25rem" }}>
+              <div style={{ fontSize:"2rem", fontWeight:900 }}>{v.landing.hero_stat}</div>
+              <div style={{ fontSize:"0.75rem", opacity:0.8, marginTop:"0.25rem" }}>{v.landing.hero_sub}</div>
+            </div>
+            <Btn className="w-full rounded-xl py-3 text-sm font-bold"
+              style={{ background:"white", color:"#111" }}>
+              {v.landing.cta} →
+            </Btn>
+          </div>
+        </Card>
+      );
+    }
+
+    function ScreenOnboarding({ v }) {
+      const [sel1, setSel1] = useState(null);
+      return (
+        <Card style={{ background: v.c.light, border:`2px solid ${v.c.border}` }}>
+          <div style={{ padding:"1.25rem" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:"0.5rem", marginBottom:"1rem" }}>
+              <span style={{ fontSize:"1.5rem" }}>{v.emoji}</span>
+              <span style={{ fontSize:"0.85rem", fontWeight:600, color: v.c.text }}>Настройка PulseOS · Шаг 1/3</span>
+            </div>
+            {/* Progress bar */}
+            <div style={{ height:"4px", background:"rgba(0,0,0,0.08)", borderRadius:"2px", marginBottom:"1rem" }}>
+              <div style={{ height:"4px", width:"33%", background: v.c.bg, borderRadius:"2px" }}/>
+            </div>
+            <div style={{ background:"white", borderRadius:"0.75rem", padding:"1rem", marginBottom:"0.75rem", boxShadow:"0 1px 4px rgba(0,0,0,0.08)" }}>
+              <p style={{ fontWeight:600, color:"#1f2937", marginBottom:"0.75rem" }}>{v.onboarding.q1}</p>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"0.5rem" }}>
+                {v.onboarding.q1_opts.map(o => (
+                  <Btn key={o} onClick={() => setSel1(o)}
+                    style={{ padding:"0.5rem 0.75rem", borderRadius:"0.5rem", fontSize:"0.8rem", fontWeight:500,
+                      border: sel1===o ? "none" : `1.5px solid ${v.c.border}`,
+                      background: sel1===o ? v.c.bg : "white",
+                      color: sel1===o ? "white" : v.c.text }}>
+                    {o}
+                  </Btn>
+                ))}
+              </div>
+            </div>
+            <div style={{ background:"white", borderRadius:"0.75rem", padding:"1rem", opacity:0.55, boxShadow:"0 1px 4px rgba(0,0,0,0.05)" }}>
+              <p style={{ fontWeight:600, color:"#1f2937", marginBottom:"0.5rem" }}>{v.onboarding.q2}</p>
+              <div style={{ display:"flex", flexWrap:"wrap", gap:"0.4rem" }}>
+                {v.onboarding.q2_opts.map(o => (
+                  <span key={o} style={{ fontSize:"0.75rem", background:"#f3f4f6", color:"#6b7280", padding:"0.25rem 0.75rem", borderRadius:"9999px" }}>{o}</span>
+                ))}
+              </div>
+            </div>
+            <p style={{ fontSize:"0.72rem", color: v.c.text, textAlign:"center", fontStyle:"italic", marginTop:"0.75rem" }}>{v.onboarding.style}</p>
+          </div>
+        </Card>
+      );
+    }
+
+    function ScreenAha({ v }) {
+      return (
+        <Card>
+          <div style={{ background: v.c.bg, color:"white", padding:"1.25rem" }}>
+            <div style={{ fontSize:"0.7rem", textTransform:"uppercase", letterSpacing:"0.1em", opacity:0.7, marginBottom:"0.25rem" }}>⚡ {v.aha.day}</div>
+            <h2 style={{ fontSize:"1.9rem", fontWeight:900, marginBottom:"0.25rem" }}>{v.aha.title}</h2>
+            <div style={{ fontSize:"0.8rem", opacity:0.85 }}>{v.aha.kpi}</div>
+          </div>
+          <div style={{ background: v.c.light, padding:"1.25rem" }}>
+            <div style={{ background:"white", borderRadius:"0.75rem", padding:"1rem", borderLeft:`4px solid #f59e0b`, marginBottom:"0.75rem", boxShadow:"0 1px 4px rgba(0,0,0,0.08)" }}>
+              <div style={{ fontSize:"1rem", fontWeight:700, color:"#b45309", marginBottom:"0.4rem" }}>{v.aha.wow}</div>
+              <p style={{ fontSize:"0.85rem", color:"#374151" }}>{v.aha.desc}</p>
+            </div>
+            <Btn className="w-full rounded-xl py-3 text-sm font-bold"
+              style={{ background: v.c.bg, color:"white", width:"100%" }}>
+              Подробнее →
+            </Btn>
+          </div>
+        </Card>
+      );
+    }
+
+    function ScreenDash({ v }) {
+      return (
+        <Card style={{ background: v.c.light, border:`2px solid ${v.c.border}` }}>
+          <div style={{ padding:"1.25rem" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"0.75rem" }}>
+              <span style={{ fontWeight:700, color: v.c.text }}>{v.emoji} PulseOS · Dashboard</span>
+              <span style={{ fontSize:"0.7rem", background:"#e5e7eb", color:"#4b5563", padding:"0.2rem 0.6rem", borderRadius:"9999px" }}>Вторник, 07:02</span>
+            </div>
+            <div style={{ background: v.c.bg, color:"white", borderRadius:"0.75rem", padding:"1rem", marginBottom:"0.75rem" }}>
+              <div style={{ fontSize:"0.72rem", opacity:0.72, marginBottom:"0.25rem" }}>🔔 {v.dash.hook}</div>
+              <div style={{ fontSize:"1rem", fontWeight:700 }}>{v.dash.lesson}</div>
+            </div>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:"0.5rem", marginBottom:"0.75rem" }}>
+              {v.dash.stats.map(s => (
+                <div key={s} style={{ background:"white", borderRadius:"0.5rem", padding:"0.6rem", textAlign:"center", boxShadow:"0 1px 3px rgba(0,0,0,0.07)" }}>
+                  <span style={{ fontSize:"0.72rem", color:"#6b7280", fontWeight:500 }}>{s}</span>
+                </div>
+              ))}
+            </div>
+            <div style={{ background:"white", borderRadius:"0.75rem", padding:"0.75rem", border:`1.5px solid ${v.c.border}`, fontSize:"0.8rem", color: v.c.text, fontWeight:500 }}>
+              {v.dash.extra}
+            </div>
+          </div>
+        </Card>
+      );
+    }
+
+    function ScreenPay({ v }) {
+      return (
+        <Card>
+          <div style={{ background: v.c.bg, color:"white", padding:"1.5rem", textAlign:"center" }}>
+            <div style={{ fontSize:"2.5rem", marginBottom:"0.5rem" }}>💳</div>
+            <div style={{ fontSize:"0.7rem", textTransform:"uppercase", letterSpacing:"0.1em", opacity:0.7, marginBottom:"0.4rem" }}>{v.pay.when}</div>
+            <h2 style={{ fontSize:"1.1rem", fontWeight:700, lineHeight:1.4 }}>{v.pay.frame}</h2>
+          </div>
+          <div style={{ background: v.c.light, padding:"1.25rem" }}>
+            <div style={{ background:"white", borderRadius:"0.75rem", padding:"1rem", textAlign:"center", marginBottom:"0.75rem", boxShadow:"0 1px 4px rgba(0,0,0,0.08)" }}>
+              <div style={{ fontSize:"1.05rem", fontWeight:900, color: v.c.text }}>{v.pay.price}</div>
+              <div style={{ fontSize:"0.72rem", color:"#9ca3af", marginTop:"0.25rem" }}>Устройство включено · Отменить в любой момент</div>
+            </div>
+            <Btn className="w-full rounded-xl py-3 font-bold"
+              style={{ background: v.c.bg, color:"white", width:"100%", marginBottom:"0.5rem" }}>
+              {v.pay.cta} →
+            </Btn>
+            <p style={{ fontSize:"0.72rem", color:"#9ca3af", textAlign:"center" }}>Без hidden fees · Прозрачные условия</p>
+          </div>
+        </Card>
+      );
+    }
+
+    function ScreenInv({ v }) {
+      return (
+        <Card style={{ background: v.c.light, border:`2px solid ${v.c.border}` }}>
+          <div style={{ padding:"1.25rem" }}>
+            <div style={{ textAlign:"center", marginBottom:"1rem" }}>
+              <div style={{ fontSize:"2.5rem", marginBottom:"0.4rem" }}>🤝</div>
+              <h2 style={{ fontSize:"1.1rem", fontWeight:700, color: v.c.text }}>{v.inv.hook}</h2>
+            </div>
+            <div style={{ background:"white", borderRadius:"0.75rem", padding:"1rem", marginBottom:"0.75rem", boxShadow:"0 1px 4px rgba(0,0,0,0.08)" }}>
+              <p style={{ fontSize:"0.85rem", color:"#374151", marginBottom:"0.75rem" }}>{v.inv.mech}</p>
+              <div style={{ background:"#f9fafb", borderRadius:"0.5rem", padding:"0.75rem", border:"1.5px dashed #d1d5db" }}>
+                <p style={{ fontSize:"0.78rem", color:"#6b7280", fontStyle:"italic" }}>"{v.inv.copy}"</p>
+              </div>
+            </div>
+            <Btn className="w-full rounded-xl py-3 text-sm font-bold"
+              style={{ background: v.c.bg, color:"white", width:"100%" }}>
+              Пригласить →
+            </Btn>
+          </div>
+        </Card>
+      );
+    }
+
+    function renderScreen(varKey, screen) {
+      const v = VARIANTS[varKey];
+      const map = { landing: ScreenLanding, onboarding: ScreenOnboarding, aha: ScreenAha, dash: ScreenDash, pay: ScreenPay, inv: ScreenInv };
+      const Comp = map[screen];
+      return Comp ? <Comp v={v} /> : null;
+    }
+
+    // ── main app ─────────────────────────────────────────────
+    function App() {
+      const [activeVariant, setActiveVariant] = useState("A");
+      const [activeScreen,  setActiveScreen]  = useState("landing");
+      const [showCJM,       setShowCJM]        = useState(false);
+      const [mode,          setMode]           = useState("variants");
+      const [mix,           setMix]            = useState({ landing:"A", onboarding:"A", aha:"A", dash:"A", pay:"A", inv:"A" });
+      const [locked,        setLocked]         = useState(null);
+
+      const v    = VARIANTS[activeVariant];
+      const meta = CJM_META[activeScreen];
+
+      const handleLock = (choice) => { setLocked(choice); setMode("locked"); };
+      const updateMix  = (screen, k) => setMix(prev => ({ ...prev, [screen]: k }));
+
+      // pill button helper
+      const Pill = ({ active, onClick, style={}, children, className="" }) => (
+        <Btn onClick={onClick} className={"rounded-xl font-semibold text-sm py-2 px-3 " + className}
+          style={{ background: active ? "#111827" : "white", color: active ? "white" : "#4b5563",
+            boxShadow: active ? "none" : "0 1px 3px rgba(0,0,0,0.1)", ...style }}>
+          {children}
+        </Btn>
+      );
+
+      return (
+        <div style={{ minHeight:"100vh", background:"#f3f4f6", padding:"1rem" }}>
+          <div style={{ maxWidth:"640px", margin:"0 auto" }}>
+
+            {/* Header */}
+            <div style={{ textAlign:"center", marginBottom:"1.5rem" }}>
+              <h1 style={{ fontSize:"1.5rem", fontWeight:900, color:"#111827" }}>🌀 PulseOS · CJM Prototype</h1>
+              <p style={{ fontSize:"0.82rem", color:"#9ca3af", marginTop:"0.25rem" }}>WHOOP Analogue · 3 Variant Hypotheses · DEEP Mode</p>
+            </div>
+
+            {/* Mode tabs */}
+            <div style={{ display:"flex", gap:"0.4rem", background:"white", borderRadius:"0.75rem", padding:"0.3rem", boxShadow:"0 1px 4px rgba(0,0,0,0.08)", marginBottom:"1.25rem" }}>
+              {[["variants","🎭 Варианты"],["compare","⚖️ Сравнение"],["builder","🔧 Конструктор"]].map(([m,l]) => (
+                <Btn key={m} onClick={() => setMode(m)} className="flex-1 rounded-lg text-sm font-semibold py-2"
+                  style={{ background: mode===m ? "#111827" : "transparent", color: mode===m ? "white" : "#6b7280", flex:1 }}>
+                  {l}
+                </Btn>
+              ))}
+            </div>
+
+            {/* ═══ VARIANTS ═══ */}
+            {mode === "variants" && (
+              <div className="fade-in">
+                {/* Variant tabs */}
+                <div style={{ display:"flex", gap:"0.5rem", marginBottom:"1rem" }}>
+                  {Object.entries(VARIANTS).map(([k, vd]) => (
+                    <Btn key={k} onClick={() => { setActiveVariant(k); setActiveScreen("landing"); }}
+                      style={{ flex:1, padding:"0.75rem 0.5rem", borderRadius:"0.75rem", fontWeight:700, fontSize:"0.82rem",
+                        background: activeVariant===k ? vd.c.bg : "white",
+                        color: activeVariant===k ? "white" : vd.c.text,
+                        border: activeVariant===k ? "none" : `2px solid ${vd.c.border}`,
+                        boxShadow: activeVariant===k ? "0 2px 8px rgba(0,0,0,0.18)" : "none" }}>
+                      {vd.emoji} {k}: {vd.name}
+                    </Btn>
+                  ))}
+                </div>
+
+                {/* Screen nav */}
+                <div style={{ display:"flex", gap:"0.35rem", marginBottom:"1rem", overflowX:"auto", paddingBottom:"0.25rem" }}>
+                  {SCREENS.map(s => (
+                    <Btn key={s} onClick={() => setActiveScreen(s)}
+                      style={{ whiteSpace:"nowrap", padding:"0.35rem 0.75rem", borderRadius:"0.5rem", fontSize:"0.75rem", fontWeight:500,
+                        background: activeScreen===s ? "#111827" : "white", color: activeScreen===s ? "white" : "#6b7280",
+                        boxShadow:"0 1px 2px rgba(0,0,0,0.08)" }}>
+                      {SCREEN_LABELS[s]}
+                    </Btn>
+                  ))}
+                </div>
+
+                {/* Screen */}
+                <div style={{ marginBottom:"1rem" }}>{renderScreen(activeVariant, activeScreen)}</div>
+
+                {/* CJM toggle */}
+                <Btn onClick={() => setShowCJM(!showCJM)} className="w-full rounded-xl py-2 text-sm font-semibold mb-3"
+                  style={{ width:"100%", background: showCJM ? "#4f46e5" : "white", color: showCJM ? "white" : "#4f46e5",
+                    border:"1.5px solid #a5b4fc" }}>
+                  📊 {showCJM ? "Скрыть CJM аннотации" : "Показать CJM аннотации"}
+                </Btn>
+
+                {showCJM && (
+                  <div style={{ background:"#eef2ff", border:"1.5px solid #c7d2fe", borderRadius:"0.75rem", padding:"1rem", marginBottom:"1rem", fontSize:"0.85rem" }}>
+                    <div style={{ fontWeight:700, color:"#3730a3", marginBottom:"0.5rem" }}>📊 CJM · {SCREEN_LABELS[activeScreen]}</div>
+                    <div><b>Этап:</b> {meta.stage} &nbsp;·&nbsp; <b>AARRR:</b> {meta.aarrr}</div>
+                    <div style={{ marginTop:"0.5rem", background:"white", borderRadius:"0.5rem", padding:"0.75rem", border:"1px solid #c7d2fe" }}>
+                      <div style={{ fontSize:"0.72rem", color:"#4338ca", fontWeight:600, marginBottom:"0.25rem" }}>🔬 Custdev‑вопрос:</div>
+                      <div style={{ color:"#374151" }}>{meta.q}</div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Lock panel */}
+                <div style={{ background:"white", borderRadius:"0.75rem", padding:"1rem", boxShadow:"0 1px 4px rgba(0,0,0,0.08)" }}>
+                  <p style={{ fontSize:"0.85rem", fontWeight:600, color:"#374151", marginBottom:"0.75rem" }}>Выбрать вариант как winning CJM:</p>
+                  <div style={{ display:"flex", gap:"0.5rem" }}>
+                    {Object.entries(VARIANTS).map(([k,vd]) => (
+                      <Btn key={k} onClick={() => handleLock(k)}
+                        style={{ flex:1, padding:"0.6rem", borderRadius:"0.75rem", color:"white", background: vd.c.bg, fontWeight:700, fontSize:"0.82rem" }}>
+                        ✅ {k}: {vd.name}
+                      </Btn>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ═══ COMPARE ═══ */}
+            {mode === "compare" && (
+              <div className="fade-in" style={{ background:"white", borderRadius:"1rem", overflow:"hidden", boxShadow:"0 2px 8px rgba(0,0,0,0.1)" }}>
+                <div style={{ background:"#111827", color:"white", padding:"1rem", textAlign:"center", fontWeight:700 }}>⚖️ Сравнение вариантов</div>
+                <div style={{ overflowX:"auto" }}>
+                  <table style={{ width:"100%", fontSize:"0.78rem", borderCollapse:"collapse" }}>
+                    <thead>
+                      <tr style={{ background:"#f9fafb" }}>
+                        <th style={{ padding:"0.75rem", textAlign:"left", color:"#6b7280", fontWeight:500 }}>Параметр</th>
+                        {Object.entries(VARIANTS).map(([k,vd]) => (
+                          <th key={k} style={{ padding:"0.75rem", textAlign:"center" }}>
+                            <span style={{ display:"inline-block", padding:"0.2rem 0.6rem", borderRadius:"0.5rem", background: vd.c.badgeBg, color: vd.c.badgeTxt, fontWeight:700 }}>
+                              {vd.emoji} {k}
+                            </span>
+                            <div style={{ color:"#6b7280", fontWeight:400, marginTop:"0.2rem" }}>{vd.name}</div>
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[
+                        ["Entry Hook",     k => VARIANTS[k].landing.hl.substring(0,52)+"…"],
+                        ["Aha Moment",     k => VARIANTS[k].aha.title],
+                        ["Aha — когда",    k => VARIANTS[k].aha.day],
+                        ["Paywall",        k => VARIANTS[k].pay.when],
+                        ["Referral hook",  k => VARIANTS[k].inv.hook],
+                        ["Лучший сегмент", k => ({A:"Серьёзный атлет",B:"Longevity / biohacker",C:"Топ-профессионал"}[k])],
+                      ].map(([label, fn], i) => (
+                        <tr key={label} style={{ background: i%2===0 ? "white" : "#f9fafb" }}>
+                          <td style={{ padding:"0.65rem 0.75rem", fontWeight:500, color:"#374151" }}>{label}</td>
+                          {Object.keys(VARIANTS).map(k => (
+                            <td key={k} style={{ padding:"0.65rem 0.75rem", color:"#6b7280", textAlign:"center" }}>{fn(k)}</td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div style={{ padding:"1rem", borderTop:"1px solid #e5e7eb" }}>
+                  <p style={{ fontSize:"0.78rem", color:"#9ca3af", textAlign:"center", marginBottom:"0.75rem" }}>Выбери winning вариант:</p>
+                  <div style={{ display:"flex", gap:"0.5rem" }}>
+                    {Object.entries(VARIANTS).map(([k,vd]) => (
+                      <Btn key={k} onClick={() => handleLock(k)}
+                        style={{ flex:1, padding:"0.6rem", borderRadius:"0.75rem", color:"white", background: vd.c.bg, fontWeight:700, fontSize:"0.82rem" }}>
+                        ✅ {k}
+                      </Btn>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ═══ BUILDER ═══ */}
+            {mode === "builder" && (
+              <div className="fade-in" style={{ display:"flex", flexDirection:"column", gap:"1rem" }}>
+                <div style={{ background:"white", borderRadius:"1rem", padding:"1rem", boxShadow:"0 2px 6px rgba(0,0,0,0.08)" }}>
+                  <div style={{ fontWeight:700, color:"#111827", marginBottom:"1rem" }}>🔧 Конструктор: выбери лучший экран из каждого варианта</div>
+                  {SCREENS.map(screen => (
+                    <div key={screen} style={{ marginBottom:"1rem" }}>
+                      <div style={{ fontSize:"0.82rem", fontWeight:600, color:"#6b7280", marginBottom:"0.4rem" }}>{SCREEN_LABELS[screen]}</div>
+                      <div style={{ display:"flex", gap:"0.4rem" }}>
+                        {Object.entries(VARIANTS).map(([k,vd]) => (
+                          <Btn key={k} onClick={() => updateMix(screen, k)}
+                            style={{ flex:1, padding:"0.5rem", borderRadius:"0.65rem", fontSize:"0.82rem", fontWeight:600,
+                              background: mix[screen]===k ? vd.c.bg : "white",
+                              color: mix[screen]===k ? "white" : vd.c.text,
+                              border: mix[screen]===k ? "none" : `1.5px solid ${vd.c.border}` }}>
+                            {vd.emoji} {k}
+                          </Btn>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Preview */}
+                <div style={{ background:"white", borderRadius:"1rem", padding:"1rem", boxShadow:"0 2px 6px rgba(0,0,0,0.08)" }}>
+                  <div style={{ fontWeight:700, color:"#111827", marginBottom:"0.75rem" }}>👁 Preview: кастомный CJM</div>
+                  <div style={{ display:"flex", gap:"0.3rem", overflowX:"auto", paddingBottom:"0.25rem", marginBottom:"0.75rem" }}>
+                    {SCREENS.map(s => (
+                      <Btn key={s} onClick={() => setActiveScreen(s)}
+                        style={{ whiteSpace:"nowrap", padding:"0.3rem 0.6rem", borderRadius:"0.5rem", fontSize:"0.72rem", fontWeight:500,
+                          background: activeScreen===s ? "#111827" : "#f3f4f6", color: activeScreen===s ? "white" : "#6b7280" }}>
+                        {SCREEN_LABELS[s]} <span style={{ color: VARIANTS[mix[s]].c.text, fontWeight:700 }}>({mix[s]})</span>
+                      </Btn>
+                    ))}
+                  </div>
+                  {renderScreen(mix[activeScreen], activeScreen)}
+                </div>
+
+                <Btn onClick={() => handleLock("custom")} className="w-full rounded-xl py-3 font-bold"
+                  style={{ width:"100%", background:"#111827", color:"white", fontSize:"0.95rem" }}>
+                  ✅ Зафиксировать кастомный CJM
+                </Btn>
+              </div>
+            )}
+
+            {/* ═══ LOCKED ═══ */}
+            {mode === "locked" && locked && (
+              <div className="fade-in" style={{ background:"white", borderRadius:"1rem", overflow:"hidden", boxShadow:"0 4px 16px rgba(0,0,0,0.12)" }}>
+                <div style={{ background:"#111827", color:"white", padding:"1.5rem", textAlign:"center" }}>
+                  <div style={{ fontSize:"2.5rem", marginBottom:"0.5rem" }}>✅</div>
+                  <h2 style={{ fontSize:"1.15rem", fontWeight:700 }}>
+                    Winning CJM: {locked === "custom" ? "🔧 Кастомный микс" : `${VARIANTS[locked].emoji} Вариант ${locked} — «${VARIANTS[locked]?.name}»`}
+                  </h2>
+                </div>
+                <div style={{ padding:"1.25rem", display:"flex", flexDirection:"column", gap:"0.75rem" }}>
+                  {locked !== "custom" && (<>
+                    <div style={{ background:"#f0fdf4", borderRadius:"0.75rem", padding:"1rem", border:"1.5px solid #86efac" }}>
+                      <div style={{ fontWeight:600, color:"#15803d", marginBottom:"0.5rem" }}>🎯 Выбранная стратегия</div>
+                      <div style={{ fontSize:"0.85rem", color:"#374151", lineHeight:1.6 }}>
+                        <div><b>Aha Moment:</b> {VARIANTS[locked].aha.title} ({VARIANTS[locked].aha.day})</div>
+                        <div><b>Paywall:</b> {VARIANTS[locked].pay.when}</div>
+                        <div><b>Referral:</b> {VARIANTS[locked].inv.hook}</div>
+                      </div>
+                    </div>
+                    <div style={{ background:"#eff6ff", borderRadius:"0.75rem", padding:"1rem", border:"1.5px solid #93c5fd", fontSize:"0.82rem" }}>
+                      <div style={{ fontWeight:600, color:"#1d4ed8", marginBottom:"0.5rem" }}>📦 Передаётся в Phase 1 (SPARC Planning)</div>
+                      <div style={{ color:"#374151", lineHeight:1.7 }}>
+                        <div>→ <b>M3:</b> Aha «{VARIANTS[locked].aha.title}» → competitive comparison</div>
+                        <div>→ <b>M4:</b> Paywall {VARIANTS[locked].pay.when} → revenue model</div>
+                        <div>→ <b>M5:</b> Loop «{locked==="A"?"Community/Sport":locked==="B"?"Data/Longevity":"B2B/Enterprise"}» → growth engine</div>
+                        <div>→ <b>MVP scope:</b> 6 экранов winning CJM = PRD scope</div>
+                      </div>
+                    </div>
+                  </>)}
+                  {locked === "custom" && (
+                    <div style={{ background:"#faf5ff", borderRadius:"0.75rem", padding:"1rem", border:"1.5px solid #c4b5fd", fontSize:"0.82rem" }}>
+                      <div style={{ fontWeight:600, color:"#7c3aed", marginBottom:"0.5rem" }}>🔧 Кастомный микс зафиксирован</div>
+                      {SCREENS.map(s => (
+                        <div key={s} style={{ color:"#374151", marginBottom:"0.2rem" }}>
+                          {SCREEN_LABELS[s]}: <b style={{ color: VARIANTS[mix[s]].c.text }}>Вариант {mix[s]} ({VARIANTS[mix[s]].name})</b>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <Btn onClick={() => { setMode("variants"); setLocked(null); }}
+                    style={{ width:"100%", padding:"0.65rem", borderRadius:"0.75rem", border:"2px solid #d1d5db",
+                      background:"white", color:"#374151", fontWeight:600, fontSize:"0.85rem" }}>
+                    ← Вернуться к вариантам
+                  </Btn>
+                </div>
+              </div>
+            )}
+
+            {/* Footer */}
+            <div style={{ marginTop:"1.5rem", textAlign:"center", fontSize:"0.72rem", color:"#9ca3af", lineHeight:1.8 }}>
+              <div>PulseOS · WHOOP Analogue CJM Prototype · DEEP Mode · 2026-04-15</div>
+              <div>Generated by reverse-engineering-unicorn v2 · Module 2.5</div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>
