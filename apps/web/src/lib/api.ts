@@ -19,7 +19,7 @@ export const api = {
   auth: {
     login: (body: { email: string; password: string }) =>
       apiFetch('/auth/login', { method: 'POST', body: JSON.stringify(body) }),
-    register: (body: { email: string; password: string; fullName?: string }) =>
+    register: (body: { email: string; password: string; name: string; confirmPassword: string }) =>
       apiFetch('/auth/register', { method: 'POST', body: JSON.stringify(body) }),
     logout: (token: string, refreshToken: string) =>
       apiFetch('/auth/logout', { method: 'POST', token, body: JSON.stringify({ refreshToken }) }),
