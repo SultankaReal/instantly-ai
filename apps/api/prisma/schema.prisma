@@ -1,0 +1,222 @@
+// Inkflow — Prisma Schema
+// datasource: PostgreSQL 16
+// generator:  prisma-client-js
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  author
+  admin
+}
+
+enum PostStatus {
+  draft
+  scheduled
+  sent
+  published
+}
+
+enum PostAccess {
+  free
+  paid
+}
+
+enum SubscriberStatus {
+  pending_confirmation
+  active
+  unsubscribed
+  bounced
+  spam
+}
+
+enum SubscriberTier {
+  free
+  paid
+  trial
+  past_due
+}
+
+enum EmailSendStatus {
+  queued
+  sent
+  delivered
+  bounced
+  failed
+}
+
+enum EmailEventType {
+  open
+  click
+  bounce
+  spam_complaint
+}
+
+// ─── Models ───────────────────────────────────────────────────────────────────
+
+model User {
+  id               String        @id @default(uuid())
+  email            String        @unique
+  password_hash    String
+  name             String
+  role             UserRole      @default(author)
+  telegram_chat_id String?
+  created_at       DateTime      @default(now())
+  updated_at       DateTime      @updatedAt
+
+  publications     Publication[]
+  posts            Post[]
+  ai_logs          AILog[]
+
+  @@index([email])
+  @@map("users")
+}
+
+model Publication {
+  id                String       @id @default(uuid())
+  author_id         String
+  name              String
+  slug              String       @unique
+  description       String?
+  custom_domain     String?      @unique
+  logo_url          String?
+  stripe_account_id String?
+  pricing_monthly   Int?
+  pricing_annual    Int?
+  created_at        DateTime     @default(now())
+  updated_at        DateTime     @updatedAt
+
+  author            User         @relation(fields: [author_id], references: [id], onDelete: Cascade)
+  posts             Post[]
+  subscribers       Subscriber[]
+  ai_logs           AILog[]
+
+  @@index([author_id])
+  @@index([slug])
+  @@map("publications")
+}
+
+model Post {
+  id               String       @id @default(uuid())
+  publication_id   String
+  author_id        String
+  title            String
+  subtitle         String?
+  content_html     String
+  slug             String
+  status           PostStatus   @default(draft)
+  access           PostAccess   @default(free)
+  meta_description String?
+  canonical_url    String?
+  scheduled_at     DateTime?
+  sent_at          DateTime?
+  published_at     DateTime?
+  created_at       DateTime     @default(now())
+  updated_at       DateTime     @updatedAt
+
+  publication      Publication  @relation(fields: [publication_id], references: [id], onDelete: Cascade)
+  author           User         @relation(fields: [author_id], references: [id], onDelete: Cascade)
+  email_sends      EmailSend[]
+
+  @@unique([publication_id, slug])
+  @@index([publication_id])
+  @@index([author_id])
+  @@index([status])
+  @@index([published_at])
+  @@map("posts")
+}
+
+model Subscriber {
+  id                             String           @id @default(uuid())
+  publication_id                 String
+  email                          String
+  name                           String?
+  status                         SubscriberStatus @default(pending_confirmation)
+  tier                           SubscriberTier   @default(free)
+  confirmation_token             String?
+  confirmation_token_expires_at  DateTime?
+  confirmed_at                   DateTime?
+  stripe_subscription_id         String?
+  stripe_customer_id             String?
+  subscribed_at                  DateTime         @default(now())
+  unsubscribed_at                DateTime?
+  created_at                     DateTime         @default(now())
+  updated_at                     DateTime         @updatedAt
+
+  publication                    Publication      @relation(fields: [publication_id], references: [id], onDelete: Cascade)
+  email_sends                    EmailSend[]
+
+  @@unique([publication_id, email])
+  @@index([publication_id])
+  @@index([email])
+  @@index([status])
+  @@index([confirmation_token])
+  @@index([stripe_customer_id])
+  @@map("subscribers")
+}
+
+model EmailSend {
+  id                   String          @id @default(uuid())
+  post_id              String
+  subscriber_id        String
+  postmark_message_id  String?
+  status               EmailSendStatus @default(queued)
+  queued_at            DateTime        @default(now())
+  sent_at              DateTime?
+  delivered_at         DateTime?
+  failed_at            DateTime?
+  error_details        Json?
+
+  post                 Post            @relation(fields: [post_id], references: [id], onDelete: Cascade)
+  subscriber           Subscriber      @relation(fields: [subscriber_id], references: [id], onDelete: Cascade)
+  events               EmailEvent[]
+
+  @@unique([post_id, subscriber_id])
+  @@index([post_id])
+  @@index([subscriber_id])
+  @@index([status])
+  @@index([postmark_message_id])
+  @@map("email_sends")
+}
+
+model EmailEvent {
+  id             String         @id @default(uuid())
+  email_send_id  String
+  event_type     EmailEventType
+  link_url       String?
+  user_agent     String?
+  occurred_at    DateTime
+  created_at     DateTime       @default(now())
+
+  email_send     EmailSend      @relation(fields: [email_send_id], references: [id], onDelete: Cascade)
+
+  @@index([email_send_id])
+  @@index([event_type])
+  @@index([occurred_at])
+  @@map("email_events")
+}
+
+model AILog {
+  id              String      @id @default(uuid())
+  author_id       String
+  publication_id  String
+  topic           String
+  tokens_used     Int?
+  created_at      DateTime    @default(now())
+
+  author          User        @relation(fields: [author_id], references: [id], onDelete: Cascade)
+  publication     Publication @relation(fields: [publication_id], references: [id], onDelete: Cascade)
+
+  @@index([author_id])
+  @@index([publication_id])
+  @@index([created_at])
+  @@map("ai_logs")
+}
