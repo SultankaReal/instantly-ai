@@ -102,7 +102,8 @@ async function processWelcomeEmail(job: Job<WelcomeJobData>): Promise<void> {
       Subject: `Welcome to ${publication.name}!`,
       HtmlBody: htmlBody,
       TrackOpens: true,
-      TrackLinks: 'None' as unknown as 'None',
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      TrackLinks: 'None' as any,
       MessageStream: 'outbound',
       Tag: 'welcome',
       Metadata: { subscriberId, publicationId },
