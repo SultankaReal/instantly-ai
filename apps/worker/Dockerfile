@@ -12,6 +12,7 @@ COPY apps/worker ./apps/worker
 COPY tsconfig.base.json ./
 
 RUN npm run build --workspace=@inkflow/shared-types 2>/dev/null || true
+RUN cd apps/worker && npx prisma generate 2>/dev/null || true
 RUN npm run build --workspace=@inkflow/worker
 
 FROM node:20-alpine

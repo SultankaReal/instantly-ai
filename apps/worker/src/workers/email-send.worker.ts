@@ -9,7 +9,7 @@
  */
 
 import { Worker, type Job } from 'bullmq';
-import { ServerClient } from 'postmark';
+import { ServerClient, type Message } from 'postmark';
 import type { EmailBatch } from '@inkflow/shared-types';
 import IORedis from 'ioredis';
 import prisma from '../utils/prisma.js';
@@ -66,7 +66,7 @@ async function processSendBatch(job: Job<EmailBatch>): Promise<void> {
   const fromEmail = POSTMARK_FROM_EMAIL;
 
   // Build Postmark message array
-  const messages = recipients.map((r) => ({
+  const messages: Message[] = recipients.map((r) => ({
     From: `${fromName} <${fromEmail}>`,
     To: r.email,
     Subject: subject,

@@ -102,7 +102,7 @@ async function processWelcomeEmail(job: Job<WelcomeJobData>): Promise<void> {
       Subject: `Welcome to ${publication.name}!`,
       HtmlBody: htmlBody,
       TrackOpens: true,
-      TrackLinks: 'None',
+      TrackLinks: 'None' as 'None',
       MessageStream: 'outbound',
       Tag: 'welcome',
       Metadata: { subscriberId, publicationId },
