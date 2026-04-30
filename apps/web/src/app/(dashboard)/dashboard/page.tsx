@@ -1,155 +1,141 @@
 'use client'
 
-import { useQuery } from '@tanstack/react-query'
-import { getAccessToken } from '@/lib/auth'
-import { api } from '@/lib/api'
+import { useEffect, useState } from 'react'
+import Link from 'next/link'
+import { apiClient } from '@/lib/api-client'
+import { getStoredToken } from '@/lib/auth'
 
-type AccountsResponse = { data: unknown[] }
-type CampaignsResponse = { data: unknown[] }
-type InboxResponse = { data: unknown[]; unread: number }
+type Publication = {
+  id: string
+  name: string
+  slug: string
+  description: string | null
+  subscriberCount: number
+}
 
-function StatCard({
-  title,
-  value,
-  subtitle,
-  color = 'blue',
-}: {
+type PostSummary = {
+  id: string
   title: string
-  value: string | number
-  subtitle?: string
-  color?: 'blue' | 'green' | 'yellow' | 'purple'
-}): React.JSX.Element {
-  const colorMap = {
-    blue: 'bg-blue-50 text-blue-600',
-    green: 'bg-green-50 text-green-600',
-    yellow: 'bg-yellow-50 text-yellow-600',
-    purple: 'bg-purple-50 text-purple-600',
-  }
+  status: string
+  created_at: string
+}
 
+type Stats = {
+  publication: Publication | null
+  totalPosts: number
+  totalSubscribers: number
+  recentPosts: PostSummary[]
+}
+
+function StatCard({ label, value, href }: { label: string; value: number | string; href: string }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-100 p-6">
-      <div className={`inline-flex items-center justify-center w-10 h-10 rounded-lg mb-4 ${colorMap[color]}`}>
-        <div className="w-4 h-4 rounded-full bg-current opacity-60" />
-      </div>
-      <div className="text-2xl font-bold text-gray-900">{value}</div>
-      <div className="text-sm font-medium text-gray-700 mt-1">{title}</div>
-      {subtitle && <div className="text-xs text-gray-400 mt-1">{subtitle}</div>}
-    </div>
+    <Link href={href} className="block rounded-xl border border-gray-200 bg-white p-6 hover:border-sky-300 hover:shadow-sm transition-all">
+      <p className="text-3xl font-bold text-gray-900">{value}</p>
+      <p className="mt-1 text-sm text-gray-500">{label}</p>
+    </Link>
   )
 }
 
-export default function DashboardPage(): React.JSX.Element {
-  const token = getAccessToken() ?? ''
+export default function DashboardPage() {
+  const [stats, setStats] = useState<Stats>({ publication: null, totalPosts: 0, totalSubscribers: 0, recentPosts: [] })
+  const [loading, setLoading] = useState(true)
 
-  const { data: accounts } = useQuery({
-    queryKey: ['accounts'],
-    queryFn: () => api.accounts.list(token) as Promise<AccountsResponse>,
-    enabled: !!token,
-  })
+  useEffect(() => {
+    async function load() {
+      const token = getStoredToken()
+      if (!token) return
 
-  const { data: campaigns } = useQuery({
-    queryKey: ['campaigns'],
-    queryFn: () => api.campaigns.list(token) as Promise<CampaignsResponse>,
-    enabled: !!token,
-  })
+      try {
+        const pubData = await apiClient.get<{ publications: Publication[] }>('/api/publications', { token })
+        const pub = pubData.publications[0] ?? null
 
-  const { data: inbox } = useQuery({
-    queryKey: ['inbox', 1],
-    queryFn: () => api.inbox.list(token, 1) as Promise<InboxResponse>,
-    enabled: !!token,
-  })
+        if (!pub) {
+          setLoading(false)
+          return
+        }
 
-  const accountCount = accounts?.data?.length ?? 0
-  const campaignCount = campaigns?.data?.length ?? 0
-  const unreadCount = inbox?.unread ?? 0
+        const [postsData, subsData] = await Promise.all([
+          apiClient.get<{ posts: PostSummary[]; total: number }>(`/api/publications/${pub.id}/posts?limit=5&page=1`, { token }),
+          apiClient.get<{ subscribers: unknown[]; total: number }>(`/api/publications/${pub.id}/subscribers?limit=1&page=1`, { token }),
+        ])
+
+        setStats({
+          publication: pub,
+          totalPosts: postsData.total,
+          totalSubscribers: subsData.total,
+          recentPosts: postsData.posts,
+        })
+      } catch {
+        // silently fail
+      } finally {
+        setLoading(false)
+      }
+    }
+    void load()
+  }, [])
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-sky-600 border-t-transparent" />
+      </div>
+    )
+  }
+
+  if (!stats.publication) {
+    return (
+      <div className="p-8">
+        <h1 className="text-2xl font-bold text-gray-900 mb-2">Welcome to Inkflow</h1>
+        <p className="text-gray-500 mb-8">You need a publication to get started.</p>
+        <Link href="/dashboard/settings" className="btn-primary">
+          Create your publication →
+        </Link>
+      </div>
+    )
+  }
+
+  const { publication, totalPosts, totalSubscribers, recentPosts } = stats
 
   return (
-    <div className="p-8">
+    <div className="p-8 max-w-5xl">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Обзор</h1>
-        <p className="text-gray-500 text-sm mt-1">Сводка по вашим аккаунтам и кампаниям</p>
+        <h1 className="text-2xl font-bold text-gray-900">{publication.name}</h1>
+        <p className="mt-1 text-sm text-gray-500">inkflow.io/{publication.slug}</p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <StatCard
-          title="Email-аккаунтов"
-          value={accountCount}
-          subtitle="подключено"
-          color="blue"
-        />
-        <StatCard
-          title="Активных кампаний"
-          value={campaignCount}
-          subtitle="в работе"
-          color="green"
-        />
-        <StatCard
-          title="Непрочитанных"
-          value={unreadCount}
-          subtitle="в инбоксе"
-          color="yellow"
-        />
-        <StatCard
-          title="Inbox Score"
-          value="—"
-          subtitle="нет данных"
-          color="purple"
-        />
+      <div className="grid grid-cols-2 gap-4 mb-10 sm:grid-cols-3">
+        <StatCard label="Subscribers" value={totalSubscribers} href="/dashboard/subscribers" />
+        <StatCard label="Posts" value={totalPosts} href="/dashboard/posts" />
+        <StatCard label="Analytics" value="→" href="/dashboard/analytics" />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-xl border border-gray-100 p-6">
-          <h2 className="text-base font-semibold text-gray-900 mb-4">Быстрые действия</h2>
-          <div className="space-y-3">
-            {[
-              { label: 'Добавить email-аккаунт', href: '/accounts', icon: '📬' },
-              { label: 'Создать кампанию', href: '/campaigns', icon: '🚀' },
-              { label: 'Проверить инбокс', href: '/inbox', icon: '📥' },
-            ].map((action) => (
-              <a
-                key={action.href}
-                href={action.href}
-                className="flex items-center gap-3 p-3 rounded-lg border border-gray-100 hover:border-blue-200 hover:bg-blue-50 transition-colors group"
-              >
-                <span className="text-xl">{action.icon}</span>
-                <span className="text-sm font-medium text-gray-700 group-hover:text-blue-700">
-                  {action.label}
-                </span>
-                <svg
-                  className="w-4 h-4 text-gray-400 group-hover:text-blue-500 ml-auto"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </a>
-            ))}
-          </div>
+      <div className="bg-white rounded-xl border border-gray-200 p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-base font-semibold text-gray-900">Recent posts</h2>
+          <Link href="/dashboard/posts/new" className="btn-primary text-xs px-3 py-1.5">
+            + New post
+          </Link>
         </div>
 
-        <div className="bg-white rounded-xl border border-gray-100 p-6">
-          <h2 className="text-base font-semibold text-gray-900 mb-4">Статус системы</h2>
-          <div className="space-y-3">
-            {[
-              { label: 'Прогрев домена', status: 'Активен', ok: true },
-              { label: 'Email-доставка', status: 'Работает', ok: true },
-              { label: 'AI-ответы', status: 'Ожидание', ok: false },
-            ].map((item) => (
-              <div key={item.label} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
-                <span className="text-sm text-gray-700">{item.label}</span>
-                <span
-                  className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${
-                    item.ok ? 'bg-green-50 text-green-700' : 'bg-gray-50 text-gray-500'
-                  }`}
-                >
-                  <span className={`w-1.5 h-1.5 rounded-full ${item.ok ? 'bg-green-500' : 'bg-gray-400'}`} />
-                  {item.status}
-                </span>
-              </div>
+        {recentPosts.length === 0 ? (
+          <p className="text-sm text-gray-500 py-4">No posts yet. Write your first one!</p>
+        ) : (
+          <ul className="divide-y divide-gray-100">
+            {recentPosts.map((post) => (
+              <li key={post.id} className="flex items-center justify-between py-3">
+                <Link href={`/dashboard/posts/${post.id}`} className="text-sm font-medium text-gray-900 hover:text-sky-600 truncate max-w-xs">
+                  {post.title}
+                </Link>
+                <span className={`ml-4 text-xs px-2 py-0.5 rounded-full ${
+                  post.status === 'sent' ? 'bg-green-100 text-green-700' :
+                  post.status === 'published' ? 'bg-sky-100 text-sky-700' :
+                  post.status === 'scheduled' ? 'bg-yellow-100 text-yellow-700' :
+                  'bg-gray-100 text-gray-600'
+                }`}>{post.status}</span>
+              </li>
             ))}
-          </div>
-        </div>
+          </ul>
+        )}
       </div>
     </div>
   )

@@ -14,6 +14,57 @@ type FieldErrors = {
   pricing_annual?: string;
 };
 
+function CreatePublicationForm({ onCreated }: { onCreated: (p: PublicationResponse) => void }) {
+  const router = useRouter();
+  const [name, setName] = useState('');
+  const [slug, setSlug] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  function toSlug(v: string) {
+    return v.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+  }
+
+  async function handleCreate(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError('');
+    if (!name.trim() || !slug.trim()) { setError('Name and slug are required.'); return; }
+    const token = getStoredToken();
+    if (!token) { router.push('/login'); return; }
+    setSaving(true);
+    try {
+      const pub = await apiClient.post<PublicationResponse>('/api/publications', { name, slug }, { token });
+      onCreated(pub);
+    } catch (err) {
+      setError(err instanceof ApiClientError ? err.message : 'Failed to create publication.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="card">
+      <h2 className="mb-1 text-base font-semibold text-gray-900">Create your publication</h2>
+      <p className="mb-5 text-sm text-gray-500">You need a publication to start publishing.</p>
+      {error && <div className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+      <form onSubmit={handleCreate} className="space-y-4">
+        <div>
+          <label htmlFor="new-name" className="label mb-1">Publication name</label>
+          <input id="new-name" type="text" value={name} onChange={(e) => { setName(e.target.value); setSlug(toSlug(e.target.value)); }} className="input" placeholder="My Newsletter" disabled={saving} required />
+        </div>
+        <div>
+          <label htmlFor="new-slug" className="label mb-1">Slug</label>
+          <input id="new-slug" type="text" value={slug} onChange={(e) => setSlug(toSlug(e.target.value))} className="input font-mono" placeholder="my-newsletter" disabled={saving} required />
+          <p className="mt-1 text-xs text-gray-500">inkflow.io/{slug || 'your-slug'}</p>
+        </div>
+        <button type="submit" disabled={saving} className="btn-primary px-6 py-2.5">
+          {saving ? 'Creating…' : 'Create publication'}
+        </button>
+      </form>
+    </div>
+  );
+}
+
 function Field({
   id,
   label,
@@ -176,14 +227,14 @@ export default function SettingsPage() {
         </p>
       </div>
 
-      {!pub && (
-        <div className="rounded-xl border border-dashed border-gray-300 py-16 text-center">
-          <p className="mb-2 text-gray-600">You don&apos;t have a publication yet.</p>
-          <p className="text-sm text-gray-500">
-            Contact support or check the API to create one.
-          </p>
-        </div>
-      )}
+      {!pub && <CreatePublicationForm onCreated={(p) => {
+        setPub(p);
+        setName(p.name);
+        setSlug(p.slug);
+        setDescription(p.description ?? '');
+        setPricingMonthly(p.pricing_monthly ? String(p.pricing_monthly / 100) : '');
+        setPricingAnnual(p.pricing_annual ? String(p.pricing_annual / 100) : '');
+      }} />}
 
       {pub && (
         <>
