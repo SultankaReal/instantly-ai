@@ -10,6 +10,7 @@ import {
 import type { SubscriberListResponse, SubscriberResponse } from '@inkflow/shared-types';
 import { QUEUE_NAMES, JOB_NAMES } from '@inkflow/shared-types';
 import type { ConfirmationEmailJob } from '@inkflow/shared-types';
+import { verifyUnsubscribeToken } from '../lib/unsubscribe-token.js';
 
 const CONFIRMATION_TOKEN_TTL_HOURS = 48;
 const CONFIRMATION_TOKEN_TTL_MS = CONFIRMATION_TOKEN_TTL_HOURS * 60 * 60 * 1000;
@@ -56,10 +57,23 @@ export async function subscriberRoutes(app: FastifyInstance): Promise<void> {
         });
       }
 
+      // If already active, return gracefully without downgrading status
+      const existing = await app.prisma.subscriber.findUnique({
+        where: { publication_id_email: { publication_id: pubId, email: body.email } },
+        select: { status: true },
+      });
+
+      if (existing?.status === 'active') {
+        return reply.status(202).send({
+          success: true,
+          data: { message: 'Confirmation email sent. Please check your inbox to confirm your subscription.' },
+        });
+      }
+
       const confirmationToken = generateConfirmationToken();
       const expiresAt = new Date(Date.now() + CONFIRMATION_TOKEN_TTL_MS);
 
-      // Upsert subscriber — handle re-subscribe gracefully
+      // Upsert subscriber — creates new or refreshes pending/unsubscribed/bounced
       const subscriber = await app.prisma.subscriber.upsert({
         where: {
           publication_id_email: {
@@ -173,32 +187,40 @@ export async function subscriberRoutes(app: FastifyInstance): Promise<void> {
     },
   );
 
-  // GET /api/subscribers/unsubscribe — public, unsubscribe via token
+  // GET /api/subscribers/unsubscribe — public, unsubscribe via HMAC token + pubId
   app.get(
     '/api/subscribers/unsubscribe',
     {
       schema: {
         querystring: {
           type: 'object',
-          required: ['token'],
-          properties: { token: { type: 'string' } },
+          required: ['token', 'pubId'],
+          properties: {
+            token: { type: 'string' },
+            pubId: { type: 'string', format: 'uuid' },
+          },
         },
       },
     },
     async (request, reply): Promise<{ success: true; data: { message: string } }> => {
-      const query = UnsubscribeSchema.parse(request.query);
+      const { token, pubId } = request.query as { token: string; pubId: string };
 
-      // The unsubscribe token is the confirmation_token reused, or we embed
-      // the subscriber ID encoded. Here we use a subscriber-specific lookup
-      // where the token is stored as confirmation_token field for unsubscribe links.
-      // In production, a separate unsubscribe_token column would be ideal.
-      const subscriber = await app.prisma.subscriber.findFirst({
-        where: { confirmation_token: query.token },
+      let email: string;
+      try {
+        email = verifyUnsubscribeToken(token);
+      } catch {
+        return reply.status(400).send({
+          success: false,
+          error: { code: 'INVALID_TOKEN', message: 'Invalid unsubscribe token' },
+        });
+      }
+
+      const subscriber = await app.prisma.subscriber.findUnique({
+        where: { publication_id_email: { publication_id: pubId, email } },
         select: { id: true, status: true },
       });
 
       if (!subscriber) {
-        // Also try finding by subscriber ID if the token is a UUID (direct links)
         return reply.status(400).send({
           success: false,
           error: { code: 'INVALID_TOKEN', message: 'Invalid unsubscribe token' },
@@ -217,8 +239,6 @@ export async function subscriberRoutes(app: FastifyInstance): Promise<void> {
         data: {
           status: 'unsubscribed',
           unsubscribed_at: new Date(),
-          confirmation_token: null,
-          confirmation_token_expires_at: null,
         },
       });
 

@@ -10,6 +10,7 @@
 import IORedis from 'ioredis';
 import prisma from './utils/prisma.js';
 import { createEmailSendWorker } from './workers/email-send.worker.js';
+import { createEmailConfirmationWorker } from './workers/email-confirmation.worker.js';
 import { createEmailWelcomeWorker } from './workers/email-welcome.worker.js';
 import { createImportWorker } from './workers/import.worker.js';
 
@@ -57,11 +58,12 @@ log('info', 'Starting Inkflow workers', {
 });
 
 const emailSendWorker = createEmailSendWorker(redis);
+const emailConfirmationWorker = createEmailConfirmationWorker(redis);
 const emailWelcomeWorker = createEmailWelcomeWorker(redis);
 const importWorker = createImportWorker(redis);
 
 log('info', 'All workers started', {
-  workers: ['email:send-batch (×10)', 'email:welcome (×5)', 'import:substack (×2)'],
+  workers: ['email:send-batch (×10)', 'email:confirmation (×10)', 'email:welcome (×5)', 'import:substack (×2)'],
 });
 
 // ─── Graceful shutdown ────────────────────────────────────────────────────────
@@ -78,6 +80,7 @@ async function shutdown(signal: string): Promise<void> {
     // Close workers — waits for in-progress jobs to finish (default 30s timeout)
     await Promise.all([
       emailSendWorker.close(),
+      emailConfirmationWorker.close(),
       emailWelcomeWorker.close(),
       importWorker.close(),
     ]);
