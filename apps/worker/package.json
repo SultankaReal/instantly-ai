@@ -13,7 +13,7 @@
   "dependencies": {
     "@inkflow/shared-types": "*",
     "@prisma/client": "^5.22.0",
-    "@postmark/sdk": "^4.0.5",
+    "postmark": "^4.0.5",
     "bullmq": "^5.13.2",
     "ioredis": "^5.4.1",
     "resend": "^4.0.0",

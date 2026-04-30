@@ -9,7 +9,7 @@
  */
 
 import { Worker, type Job } from 'bullmq';
-import { ServerClient } from '@postmark/sdk';
+import { ServerClient } from 'postmark';
 import type { EmailBatch } from '@inkflow/shared-types';
 import IORedis from 'ioredis';
 import prisma from '../utils/prisma.js';
