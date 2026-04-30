@@ -68,11 +68,10 @@ export async function subscriberRoutes(app: FastifyInstance): Promise<void> {
           },
         },
         update: {
-          // Re-subscribe: only update token if currently unsubscribed
-          name: body.name ?? undefined,
+          ...(body.name !== undefined ? { name: body.name ?? null } : {}),
           confirmation_token: confirmationToken,
           confirmation_token_expires_at: expiresAt,
-          status: 'pending_confirmation',
+          status: 'pending_confirmation' as const,
         },
         create: {
           publication_id: pubId,
