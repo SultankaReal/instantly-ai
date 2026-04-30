@@ -24,17 +24,27 @@
       "id": "F2",
       "name": "subscriber-management",
       "title": "Subscriber Management — Email signup, double opt-in, list management",
-      "status": "next",
+      "status": "done",
       "priority": 1,
       "phase": "mvp",
       "stories": ["US-04"],
       "depends_on": [],
-      "packages": ["apps/api", "apps/web", "packages/email-templates"],
+      "packages": ["apps/api", "apps/web", "apps/worker"],
       "algorithms": ["subscribe()", "confirmSubscription()", "unsubscribe()"],
-      "files": [],
-      "started_at": null,
-      "completed_at": null,
-      "notes": "Foundational — no dependencies. Start here. Security-critical: double opt-in token flow."
+      "files": [
+        "apps/api/src/routes/subscribers.ts",
+        "apps/api/src/lib/unsubscribe-token.ts",
+        "apps/worker/src/workers/email-confirmation.worker.ts",
+        "apps/worker/src/index.ts",
+        "apps/web/src/app/confirm/page.tsx",
+        "apps/web/src/app/confirmed/page.tsx",
+        "apps/web/src/app/unsubscribe/page.tsx",
+        "docs/features/subscriber-management/sparc",
+        "docs/features/subscriber-management/review-report.md"
+      ],
+      "started_at": "2026-05-01",
+      "completed_at": "2026-05-01",
+      "notes": "Completed. Double opt-in flow, HMAC unsubscribe tokens, BullMQ email-confirmation worker. 5 major issues fixed in Phase 4 review."
     },
     {
       "id": "F3",
