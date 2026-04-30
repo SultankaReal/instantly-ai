@@ -48,32 +48,47 @@ Feature: Upload Substack export
 
 **As an** author,
 **I want to** see live progress while my import is running,
-**So that** I know it hasn't stalled.
+**So that** I know it hasn't stalled and I don't have to refresh the page.
 
 ```gherkin
 Feature: Import job status
 
-  Scenario: Active job returns progress
-    Given a BullMQ job with id "job-456" is active
+  Background:
+    Given I am authenticated as an author and own publication "pub-123"
+
+  Scenario: Active job returns progress in range 0–100
+    Given a BullMQ job "job-456" is active on queue "import:substack"
     When I GET /api/publications/pub-123/import/job-456/status
     Then the response status is 200
-    And the response contains { state: "active", progress: 45 }
+    And response.data.state is "active"
+    And response.data.progress is a number between 0 and 100 inclusive
 
-  Scenario: Completed job returns summary
-    Given job "job-456" completed successfully with 980 imported, 20 skipped
+  Scenario: Completed job returns numeric summary
+    Given job "job-456" completed with 980 imported and 20 invalid rows
     When I GET /api/publications/pub-123/import/job-456/status
     Then the response status is 200
-    And { state: "completed", result: { imported: 980, failed: 20, errors: [...] } }
+    And response.data.state is "completed"
+    And response.data.result.imported is 980
+    And response.data.result.failed is 20
 
-  Scenario: Failed job returns error
-    Given job "job-456" failed with "subscribers.csv not found"
+  Scenario: Failed job returns reason string
+    Given job "job-456" failed
     When I GET /api/publications/pub-123/import/job-456/status
     Then the response status is 200
-    And { state: "failed", reason: "subscribers.csv not found inside the ZIP archive." }
+    And response.data.state is "failed"
+    And response.data.reason is a non-empty string
 
-  Scenario: Unknown job id
+  Scenario: Unknown job id returns 404
     When I GET /api/publications/pub-123/import/nonexistent-id/status
     Then the response status is 404
+    And the error code is "JOB_NOT_FOUND"
+
+  Scenario: Author B cannot poll author A's job
+    Given job "job-456" was created by author A for publication "pub-123"
+    And I am authenticated as author B who does not own "pub-123"
+    When I GET /api/publications/pub-123/import/job-456/status
+    Then the response status is 403
+    And the error code is "FORBIDDEN"
 ```
 
 ---
@@ -81,52 +96,65 @@ Feature: Import job status
 ### US-03: View Import Summary
 
 **As an** author,
-**I want to** see how many subscribers were imported, skipped, and which rows were invalid,
-**So that** I know the quality of my import.
+**I want to** see how many subscribers were imported, skipped (duplicates), and invalid (bad email format),
+**So that** I can verify the data quality of my import without checking the database manually.
 
 ```gherkin
 Feature: Import completion summary
 
-  Scenario: Summary shows breakdown
-    Given import completed with 980 imported, 20 invalid rows
-    When the frontend polling detects state "completed"
-    Then the UI shows:
-      | Imported    | 980 |
-      | Skipped (dupes) | (980 - result.imported via DB skipDuplicates) |
-      | Invalid rows | 20 |
-    And if errors.length > 0, the first 10 invalid email rows are listed
+  Background:
+    Given I am authenticated as an author and own publication "pub-123"
+    And publication "pub-123" already has subscriber "bob@example.com"
 
-  Scenario: Welcome email opt-in
-    Given sendWelcome was "true" on upload
-    Then the worker enqueues a "send-welcome" job for each newly imported subscriber
+  Scenario: Summary shows concrete imported / skipped / invalid counts
+    Given I uploaded a CSV with 1000 rows: 980 new valid emails, 1 duplicate (bob@example.com), 19 invalid emails
+    When the import job completes
+    Then GET /api/publications/pub-123/import/:jobId/status returns:
+      | result.imported | 980 |
+      | result.failed   | 19  |
+    And result.errors contains up to 10 invalid email strings
+    And bob@example.com is not re-inserted (deduplicated by DB unique constraint)
+
+  Scenario: Welcome emails enqueued for newly imported subscribers only
+    Given I uploaded the ZIP with sendWelcome: "true"
+    And the import job completes with 980 new subscribers
+    Then 980 jobs are enqueued on queue "email:welcome"
+    And no welcome job is enqueued for the 1 duplicate (bob@example.com)
 ```
 
 ---
 
-### US-04: Error Handling
+### US-04: Recover from Import Failure
 
 **As an** author,
-**I want to** receive clear error messages when my import fails,
-**So that** I can fix the problem and retry.
+**I want to** see a specific error message when my import fails,
+**So that** I know whether to fix my export file or contact support.
 
 ```gherkin
-Feature: Import error handling
+Feature: Import failure recovery
 
-  Scenario: ZIP bomb rejected
-    Given the uploaded ZIP contains files expanding to more than 100 MB
+  Background:
+    Given I am authenticated as an author and own publication "pub-123"
+
+  Scenario: ZIP bomb rejected by worker
+    Given I uploaded a ZIP whose total uncompressed size exceeds 100 MB
     When the worker processes the job
-    Then the job fails with reason "ZIP bomb detected — uncompressed size exceeds 100 MB"
-    And the status endpoint returns { state: "failed", reason: "..." }
+    Then the job fails with an UnrecoverableError
+    And GET /api/publications/pub-123/import/:jobId/status returns:
+      | state  | "failed"                                              |
+      | reason | starts with "ZIP bomb detected"                       |
 
   Scenario: Missing subscribers.csv
-    Given the ZIP does not contain subscribers.csv
+    Given the ZIP does not contain a file named "subscribers.csv" (case-insensitive)
     When the worker processes the job
-    Then the job fails with reason "subscribers.csv not found inside the ZIP archive"
+    Then the job fails
+    And reason starts with "subscribers.csv not found"
 
   Scenario: Corrupt CSV
-    Given subscribers.csv contains unparseable content
+    Given subscribers.csv contains unparseable binary content
     When the worker processes the job
-    Then the job fails with reason "Failed to parse subscribers.csv: ..."
+    Then the job fails
+    And reason starts with "Failed to parse subscribers.csv"
 ```
 
 ---

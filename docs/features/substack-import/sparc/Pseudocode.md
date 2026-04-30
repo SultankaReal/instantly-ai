@@ -62,19 +62,22 @@ STEPS:
 3. IF fileData is null:
    RETURN 422 { error: { code: 'NO_FILE', message: 'No file uploaded' } }
 
-4. VALIDATE magic bytes:
-   Read first 4 bytes of fileData stream
-   IF bytes !== 0x504b0304:
-     DRAIN remaining stream
-     RETURN 422 { error: { code: 'INVALID_FILE_TYPE', message: 'Uploaded file is not a ZIP' } }
-
-5. SAVE to temp file:
+4. SAVE to temp file FIRST (before magic bytes check):
+   // Stream must not be split; write entire stream to disk, then inspect
    tmpPath = path.join(os.tmpdir(), `inkflow-import-${crypto.randomUUID()}.zip`)
-   PIPE fileData stream → fs.createWriteStream(tmpPath)
-   AWAIT completion
+   PIPE fileData.file stream → fs.createWriteStream(tmpPath)
+   AWAIT stream 'finish' event
 
-   // @fastify/multipart enforces the 50 MB limit — if exceeded, it throws
-   // with RequestEntityTooLargeError before we even read the stream
+   // @fastify/multipart enforces the 50 MB limit — if exceeded, it emits
+   // RequestEntityTooLargeError on the multipart stream before writing completes
+
+5. VALIDATE magic bytes (after file is fully written):
+   Open tmpPath for reading
+   Read first 4 bytes
+   Close file
+   IF bytes !== '504b0304' (hex):
+     fs.unlinkSync(tmpPath)
+     RETURN 422 { error: { code: 'INVALID_FILE_TYPE', message: 'Uploaded file is not a valid ZIP' } }
 
 6. ENQUEUE import job:
    job = await importQueue.add(JOB_NAMES.IMPORT_SUBSTACK, {
@@ -113,6 +116,10 @@ STEPS:
 2. FETCH job from BullMQ:
    job = await importQueue.getJob(jobId)
    IF job is null → 404 { error: { code: 'JOB_NOT_FOUND' } }
+
+   // Verify job belongs to this publication (prevents IDOR)
+   IF job.data.publicationId !== pubId:
+     RETURN 403 { error: { code: 'FORBIDDEN', message: 'Job does not belong to this publication' } }
 
 3. GET job state:
    state = await job.getState()
@@ -198,14 +205,20 @@ ON SUBMIT:
     errorMsg = error.message
   uploading = false
 
-POLLING LOOP (every 2 seconds, stop when completed/failed):
-  WHILE jobState !== 'completed' AND jobState !== 'failed':
+POLLING LOOP (every 2 seconds, stop when completed/failed or after 10 minutes):
+  pollCount = 0
+  MAX_POLLS = 300  // 300 × 2s = 10 minutes max
+  WHILE jobState !== 'completed' AND jobState !== 'failed' AND pollCount < MAX_POLLS:
     response = GET /api/publications/:pubId/import/:jobId/status
     jobState = response.data.state
     progress = response.data.progress
     IF jobState === 'completed': result = response.data.result
     IF jobState === 'failed': reason = response.data.reason
+    pollCount++
     SLEEP 2000
+  IF pollCount >= MAX_POLLS AND jobState === 'active':
+    reason = 'Import is taking longer than expected. Please refresh the page to check status.'
+    jobState = 'failed'  // show error UI
 
 RENDER:
   IF jobState === 'idle':
