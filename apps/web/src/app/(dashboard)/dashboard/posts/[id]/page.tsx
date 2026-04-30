@@ -47,6 +47,7 @@ export default function PostEditorPage() {
   const [publishing, setPublishing] = useState(false);
   const [publishError, setPublishError] = useState('');
   const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
   const [loadError, setLoadError] = useState('');
   const [loading, setLoading] = useState(true);
 
@@ -66,7 +67,14 @@ export default function PostEditorPage() {
         setContentHtml(data.content_html);
         setAccess(data.access);
         setMetaDescription(data.meta_description ?? '');
-        setScheduledAt(data.scheduled_at ? new Date(data.scheduled_at).toISOString().slice(0, 16) : '');
+        if (data.scheduled_at) {
+          // Convert UTC to local time for datetime-local input (input expects local, not UTC)
+          const d = new Date(data.scheduled_at);
+          const local = new Date(d.getTime() - d.getTimezoneOffset() * 60_000);
+          setScheduledAt(local.toISOString().slice(0, 16));
+        } else {
+          setScheduledAt('');
+        }
       } catch (err) {
         if (err instanceof ApiClientError) {
           setLoadError(err.message);
@@ -141,11 +149,13 @@ export default function PostEditorPage() {
     if (!token) return;
     setSaveStatus('saving');
     try {
-      await apiClient.patch(
+      const updated = await apiClient.patch<PostResponse>(
         `/api/posts/${postId}`,
+        // Send null to clear (API accepts nullable scheduled_at); undefined would skip the field
         { scheduled_at: value ? new Date(value).toISOString() : null },
         { token },
       );
+      setPost(updated);
       setSaveStatus('saved');
       setLastSavedAt(new Date());
     } catch {
@@ -207,14 +217,20 @@ export default function PostEditorPage() {
   // Delete draft
   async function handleDelete(): Promise<void> {
     if (!confirm('Delete this draft? This cannot be undone.')) return;
+    setDeleteError('');
     setDeleting(true);
     const token = getStoredToken();
     if (!token) { router.push('/login'); return; }
     try {
       await apiClient.delete(`/api/posts/${postId}`, { token });
       router.push('/dashboard/posts');
-    } catch {
+    } catch (err) {
       setDeleting(false);
+      if (err instanceof ApiClientError) {
+        setDeleteError(err.message);
+      } else {
+        setDeleteError('Failed to delete post. Please try again.');
+      }
     }
   }
 
@@ -303,9 +319,9 @@ export default function PostEditorPage() {
         </div>
       </div>
 
-      {(sendError || publishError) && (
+      {(sendError || publishError || deleteError) && (
         <div className="mb-6 rounded-lg bg-red-50 p-4 text-sm text-red-700" role="alert">
-          {sendError || publishError}
+          {sendError || publishError || deleteError}
         </div>
       )}
 

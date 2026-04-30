@@ -63,6 +63,7 @@ export async function postRoutes(app: FastifyInstance): Promise<void> {
       removeOnFail: 200,
     },
   });
+  app.addHook('onClose', async () => { await emailQueue.close(); });
 
   // GET /api/publications/:pubId/posts — auth required, paginated list
   app.get(
@@ -288,7 +289,7 @@ export async function postRoutes(app: FastifyInstance): Promise<void> {
 
         if (!hasAccess) {
           const truncatedHtml = truncateHtmlTo20Percent(post.content_html);
-          const upgradeUrl = `/publications/${post.publication.slug}/subscribe`;
+          const upgradeUrl = `/${post.publication.slug}/subscribe`;
 
           return reply.send({
             success: true,
@@ -443,9 +444,13 @@ export async function postRoutes(app: FastifyInstance): Promise<void> {
           ...(sanitizedHtml !== undefined && { content_html: sanitizedHtml }),
           ...(body.access !== undefined && { access: body.access }),
           ...(body.meta_description !== undefined && { meta_description: body.meta_description }),
-          ...(body.scheduled_at !== undefined && {
+          ...(body.scheduled_at !== undefined && body.scheduled_at !== null && {
             scheduled_at: body.scheduled_at,
             status: 'scheduled',
+          }),
+          ...(body.scheduled_at === null && {
+            scheduled_at: null,
+            status: 'draft',
           }),
           ...(body.status === 'published' && {
             status: 'published',
@@ -504,7 +509,7 @@ export async function postRoutes(app: FastifyInstance): Promise<void> {
       if (post.status !== 'draft') {
         return reply.status(409).send({
           success: false,
-          error: { code: 'CANNOT_DELETE_SENT_POST', message: 'Only draft posts can be deleted' },
+          error: { code: 'CANNOT_DELETE_NON_DRAFT', message: 'Only draft posts can be deleted' },
         });
       }
 
@@ -598,18 +603,16 @@ export async function postRoutes(app: FastifyInstance): Promise<void> {
         skipDuplicates: true,
       });
 
-      // Split subscribers into batches of BATCH_SIZE and enqueue BullMQ jobs
+      // Split subscribers into batches of BATCH_SIZE and enqueue all BullMQ jobs in one pipeline
       const batches: EmailRecipient[][] = [];
       for (let i = 0; i < subscribers.length; i += BATCH_SIZE) {
         batches.push(subscribers.slice(i, i + BATCH_SIZE));
       }
 
       const totalBatches = batches.length;
-      for (let batchNumber = 1; batchNumber <= totalBatches; batchNumber++) {
-        const batchSubscribers = batches[batchNumber - 1];
-        if (!batchSubscribers) continue;
-
-        const payload: EmailBatch = {
+      const jobs = batches.map((batchSubscribers, index) => ({
+        name: JOB_NAMES.SEND_EMAIL_BATCH,
+        data: {
           postId,
           publicationId: post.publication_id,
           recipients: batchSubscribers.map((s) => ({
@@ -617,12 +620,11 @@ export async function postRoutes(app: FastifyInstance): Promise<void> {
             email: s.email,
             name: s.name,
           })),
-          batchNumber,
+          batchNumber: index + 1,
           totalBatches,
-        };
-
-        await emailQueue.add(JOB_NAMES.SEND_EMAIL_BATCH, payload);
-      }
+        } satisfies EmailBatch,
+      }));
+      await emailQueue.addBulk(jobs);
 
       // Update post status to 'sent', set published_at if not already set
       await app.prisma.post.update({
@@ -697,31 +699,21 @@ export async function postRoutes(app: FastifyInstance): Promise<void> {
       const bounced = countByStatus['bounced'] ?? 0;
       const failed = countByStatus['failed'] ?? 0;
 
-      // Aggregate EmailEvent counts via email_sends
-      const emailSendIds = await app.prisma.emailSend.findMany({
-        where: { post_id: postId },
-        select: { id: true },
-      });
-      const sendIdList = emailSendIds.map((e) => e.id);
-
-      const [openEvents, clickEvents] = await Promise.all([
+      // Aggregate EmailEvent counts via nested relation — avoids materializing send IDs into Node heap
+      const [openEvents, clickEvents, uniqueOpenSends, uniqueClickSends] = await Promise.all([
         app.prisma.emailEvent.count({
-          where: { email_send_id: { in: sendIdList }, event_type: 'open' },
+          where: { email_send: { post_id: postId }, event_type: 'open' },
         }),
         app.prisma.emailEvent.count({
-          where: { email_send_id: { in: sendIdList }, event_type: 'click' },
-        }),
-      ]);
-
-      // Unique opens/clicks — count distinct email_send_ids with the event
-      const [uniqueOpenSends, uniqueClickSends] = await Promise.all([
-        app.prisma.emailEvent.groupBy({
-          by: ['email_send_id'],
-          where: { email_send_id: { in: sendIdList }, event_type: 'open' },
+          where: { email_send: { post_id: postId }, event_type: 'click' },
         }),
         app.prisma.emailEvent.groupBy({
           by: ['email_send_id'],
-          where: { email_send_id: { in: sendIdList }, event_type: 'click' },
+          where: { email_send: { post_id: postId }, event_type: 'open' },
+        }),
+        app.prisma.emailEvent.groupBy({
+          by: ['email_send_id'],
+          where: { email_send: { post_id: postId }, event_type: 'click' },
         }),
       ]);
 

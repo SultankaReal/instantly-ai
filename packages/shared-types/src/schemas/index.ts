@@ -102,6 +102,11 @@ export type CreatePostRequest = z.infer<typeof CreatePostSchema>;
 
 export const UpdatePostSchema = CreatePostSchema.partial().extend({
   status: z.enum(['draft', 'published']).optional(),
+  // Allow null to clear scheduled_at — .partial() makes it optional but not nullable
+  scheduled_at: z.coerce.date()
+    .refine((d) => d > new Date(), { message: 'Scheduled time must be in the future' })
+    .nullable()
+    .optional(),
 });
 export type UpdatePostRequest = z.infer<typeof UpdatePostSchema>;
 
