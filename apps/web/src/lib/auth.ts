@@ -103,3 +103,12 @@ export function clearAuth(): void {
 export function isAuthenticated(): boolean {
   return getStoredToken() !== null;
 }
+
+/** Alias for getStoredToken — used by auth layout redirect check. */
+export const getAccessToken = getStoredToken;
+
+/** Persist both access and refresh tokens in one call. */
+export function setTokens(accessToken: string, refreshToken: string): void {
+  setStoredToken(accessToken);
+  setStoredRefreshToken(refreshToken);
+}

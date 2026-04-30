@@ -40,22 +40,6 @@ services:
       - api
     restart: unless-stopped
 
-  bot:
-    build:
-      context: .
-      dockerfile: apps/bot/Dockerfile
-    environment:
-      BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
-      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
-      TELEGRAM_WEBHOOK_URL: ${TELEGRAM_WEBHOOK_URL}
-      API_URL: http://api:3000
-      WEB_URL: ${APP_URL}
-      NODE_ENV: production
-      PORT: 3002
-    depends_on:
-      - api
-    restart: unless-stopped
-
   worker:
     build:
       context: .
