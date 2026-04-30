@@ -1,4 +1,5 @@
 {
+<<<<<<< HEAD
   "name": "@inkflow/shared-types",
   "version": "0.1.0",
   "main": "dist/index.js",
@@ -15,4 +16,19 @@
   "dependencies": {
     "zod": "^3.24.0"
   }
+=======
+  "name": "@potok/shared-types",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": { "zod": "^3.24.0" },
+  "devDependencies": { "typescript": "^5.7.2" }
+>>>>>>> f4b81c234214e06582b16ab83530a90f466ccb4d
 }
