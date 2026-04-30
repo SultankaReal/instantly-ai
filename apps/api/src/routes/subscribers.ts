@@ -20,6 +20,17 @@ function generateConfirmationToken(): string {
 }
 
 export async function subscriberRoutes(app: FastifyInstance): Promise<void> {
+  // Shared queue instance — created once, not per-request, to avoid connection leaks
+  const emailQueue = new Queue(QUEUE_NAMES.EMAIL_SEND, {
+    connection: app.redis,
+    defaultJobOptions: {
+      attempts: 5,
+      backoff: { type: 'exponential', delay: 1000 },
+      removeOnComplete: 50,
+      removeOnFail: 100,
+    },
+  });
+
   // POST /api/publications/:pubId/subscribers — public, subscribe to publication
   app.post(
     '/api/publications/:pubId/subscribers',
@@ -99,16 +110,6 @@ export async function subscriberRoutes(app: FastifyInstance): Promise<void> {
       });
 
       // Enqueue confirmation email
-      const emailQueue = new Queue(QUEUE_NAMES.EMAIL_SEND, {
-        connection: app.redis,
-        defaultJobOptions: {
-          attempts: 5,
-          backoff: { type: 'exponential', delay: 1000 },
-          removeOnComplete: 50,
-          removeOnFail: 100,
-        },
-      });
-
       const jobPayload: ConfirmationEmailJob = {
         subscriberId: subscriber.id,
         publicationId: pubId,
@@ -118,7 +119,6 @@ export async function subscriberRoutes(app: FastifyInstance): Promise<void> {
       };
 
       await emailQueue.add(JOB_NAMES.SEND_CONFIRMATION, jobPayload);
-      await emailQueue.close();
 
       return reply.status(202).send({
         success: true,
@@ -144,28 +144,20 @@ export async function subscriberRoutes(app: FastifyInstance): Promise<void> {
     async (request, reply): Promise<{ success: true; data: { message: string } }> => {
       const query = ConfirmSubscriptionSchema.parse(request.query);
 
+      // Filter on both token AND expiry in one query — prevents timing oracle
+      // (no second round-trip that distinguishes "exists but expired" from "not found")
       const subscriber = await app.prisma.subscriber.findFirst({
         where: {
           confirmation_token: query.token,
+          confirmation_token_expires_at: { gt: new Date() },
         },
-        select: {
-          id: true,
-          status: true,
-          confirmation_token_expires_at: true,
-        },
+        select: { id: true },
       });
 
       if (!subscriber) {
         return reply.status(400).send({
           success: false,
           error: { code: 'INVALID_TOKEN', message: 'Invalid or expired confirmation token' },
-        });
-      }
-
-      if (subscriber.confirmation_token_expires_at && subscriber.confirmation_token_expires_at < new Date()) {
-        return reply.status(400).send({
-          success: false,
-          error: { code: 'TOKEN_EXPIRED', message: 'Confirmation token has expired. Please subscribe again.' },
         });
       }
 

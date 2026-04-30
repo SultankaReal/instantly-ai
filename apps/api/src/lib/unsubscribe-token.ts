@@ -1,13 +1,16 @@
 import { createHmac } from 'node:crypto'
 
-const UNSUBSCRIBE_SECRET = process.env['UNSUBSCRIBE_TOKEN_SECRET'] ?? 'change-me-in-production'
+const UNSUBSCRIBE_SECRET = process.env['UNSUBSCRIBE_TOKEN_SECRET']
+if (!UNSUBSCRIBE_SECRET) {
+  throw new Error('UNSUBSCRIBE_TOKEN_SECRET environment variable is required')
+}
 
 /**
  * Generates an HMAC-signed unsubscribe token for an email address.
  * Format: base64url(<email>.<hmac>)
  */
 export function generateUnsubscribeToken(email: string): string {
-  const hmac = createHmac('sha256', UNSUBSCRIBE_SECRET)
+  const hmac = createHmac('sha256', UNSUBSCRIBE_SECRET!)
     .update(email.toLowerCase())
     .digest('hex')
   const payload = `${email.toLowerCase()}.${hmac}`
@@ -32,7 +35,7 @@ export function verifyUnsubscribeToken(token: string): string {
   const email = payload.slice(0, lastDotIndex)
   const providedHmac = payload.slice(lastDotIndex + 1)
 
-  const expectedHmac = createHmac('sha256', UNSUBSCRIBE_SECRET)
+  const expectedHmac = createHmac('sha256', UNSUBSCRIBE_SECRET!)
     .update(email)
     .digest('hex')
 

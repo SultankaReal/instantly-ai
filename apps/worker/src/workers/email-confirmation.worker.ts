@@ -67,6 +67,7 @@ async function processConfirmationEmail(job: Job): Promise<void> {
     return;
   }
 
+  const authorName = publication.author?.name ?? 'the author';
   const confirmationUrl = `${APP_URL}/confirm?token=${encodeURIComponent(confirmationToken)}`;
   const greeting = name ? `Hi ${escapeHtml(name)},` : 'Hi there,';
 
@@ -95,7 +96,7 @@ async function processConfirmationEmail(job: Job): Promise<void> {
               <h1 style="color:#1a1a2e;font-size:26px;font-weight:700;margin:0 0 20px;line-height:1.3">One last step!</h1>
               <p style="color:#444;font-size:16px;line-height:1.6;margin:0 0 16px">${greeting}</p>
               <p style="color:#444;font-size:16px;line-height:1.6;margin:0 0 16px">
-                You&apos;re almost subscribed to <strong>${escapeHtml(publication.name)}</strong> by ${escapeHtml(publication.author.name)}.
+                You&apos;re almost subscribed to <strong>${escapeHtml(publication.name)}</strong> by ${escapeHtml(authorName)}.
               </p>
               <p style="color:#444;font-size:16px;line-height:1.6;margin:0 0 32px">
                 Please click the button below to confirm your email address and activate your subscription.
@@ -122,7 +123,7 @@ async function processConfirmationEmail(job: Job): Promise<void> {
           <tr>
             <td style="background:#f6f9fc;padding:20px 40px;border-top:1px solid #e8e8e8">
               <p style="color:#aaa;font-size:12px;margin:0;text-align:center">
-                Sent by <strong>${escapeHtml(publication.author.name)}</strong> via
+                Sent by <strong>${escapeHtml(authorName)}</strong> via
                 <a href="https://inkflow.io" style="color:#6366f1;text-decoration:none">Inkflow</a>
               </p>
             </td>
